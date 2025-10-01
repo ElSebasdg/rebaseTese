@@ -183,12 +183,39 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
   }
 
   AssertFatal((get_nrUE_params()->mcs >= 0 && get_nrUE_params()->mcs <= 28), "MCS must be 1 to 28!!!");
+  
+  // Initialize the sl_info structure
+  memset(&mac->sl_info, 0, sizeof(NR_SL_UEs_t));
+  pthread_mutex_init(&mac->sl_info.mutex, NULL);
+  
+  LOG_I(NR_MAC, "[SL_INIT] === INITIALIZING SL UE LIST === src_id=%d, max_connections=%d\n", mac->src_id, CUR_SL_UE_CONNECTIONS);
+  
+  // Get remote_ue_id from ueinfo if available
+  uint8_t remote_ue_id = (ueinfo != NULL) ? ueinfo->remote_ue_id : 0;
+  LOG_I(NR_MAC, "[SL_INIT] remote_ue_id from config: %d\n", remote_ue_id);
+  
   int k = 0;
+  // Initialize structures for all possible UEs (0 to 3), but skip own srcid
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS + 1; i++) {
-    if (mac->src_id == i)
-	  continue;
+    LOG_I(NR_MAC, "[SL_INIT] Checking uid=%d vs src_id=%d\n", i, mac->src_id);
+    
+    if (mac->src_id == i) {
+      LOG_I(NR_MAC, "[SL_INIT] Skipping own src_id=%d\n", i);
+      continue;
+    }
+    
+    LOG_I(NR_MAC, "[SL_INIT] Allocating UE slot[%d] for uid=%d...\n", k, i);
+    
+    // Safe allocation with null check
     mac->sl_info.list[k] = calloc(1, sizeof(NR_SL_UE_info_t));
+    if (!mac->sl_info.list[k]) {
+      LOG_E(NR_MAC, "[SL_INIT] ERROR: Failed to allocate memory for SL UE info slot[%d]\n", k);
+      continue;
+    }
+    
     mac->sl_info.list[k]->uid = i;
+    LOG_I(NR_MAC, "[SL_INIT] SUCCESS: Allocated UE[%d] with uid=%d at address %p\n", k, i, mac->sl_info.list[k]);
+    
     NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[k]->UE_sched_ctrl;
     UE_sched_ctrl->rx_csi_report.RI = 0;
     UE_sched_ctrl->rx_csi_report.CQI = 0;
@@ -198,10 +225,28 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
       add_tail_nr_list(&UE_sched_ctrl->available_sl_harq, harq);
     create_nr_list(&UE_sched_ctrl->feedback_sl_harq, 16);
     create_nr_list(&UE_sched_ctrl->retrans_sl_harq, 16);
+    
+    LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d LISTS INITIALIZED ===\n", k, i);
+    // LOG_I(NR_MAC, "[SL_INIT]   available_sl_harq: head=%d, len=%d\n", 
+    //       UE_sched_ctrl->available_sl_harq.head, UE_sched_ctrl->available_sl_harq.len);
+    // LOG_I(NR_MAC, "[SL_INIT]   feedback_sl_harq: head=%d, len=%d\n", 
+    //       UE_sched_ctrl->feedback_sl_harq.head, UE_sched_ctrl->feedback_sl_harq.len);
+    // LOG_I(NR_MAC, "[SL_INIT]   retrans_sl_harq: head=%d, len=%d\n", 
+    //       UE_sched_ctrl->retrans_sl_harq.head, UE_sched_ctrl->retrans_sl_harq.len);
+    
     k++;
   }
+  
+  // Log final state
+  LOG_I(NR_MAC, "[SL_INIT] === FINAL STATE === Allocated %d UEs:\n", k);
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] != NULL) {
+      LOG_I(NR_MAC, "[SL_INIT]   slot[%d]: UE uid=%d at %p\n", i, mac->sl_info.list[i]->uid, mac->sl_info.list[i]);
+    } else {
+      LOG_I(NR_MAC, "[SL_INIT]   slot[%d]: NULL\n", i);
+    }
+  }
 }
-
 void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac)
 {
   // default values as defined in 38.331 sec 9.2.2

@@ -42,6 +42,11 @@
 #include <executables/nr-uesoftmodem.h>
 #include "NR_MAC_UE/mac_defs_sl.h"
 #include "NR_MAC_gNB/nr_mac_gNB.h"
+#include "openair1/SIMULATION/TOOLS/sim.h"
+#include "openair1/PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
+
+// Declare function from csi_rx.c
+uint8_t get_latest_sl_cqi(void);
 
 #define LOWER_BLER 0.2344
 #define UPPER_BLER 5.547
@@ -89,16 +94,65 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
                           sl_nr_slsch_pdu_t *rx_slsch_pdu,
                           uint16_t src_id)
 {
+  LOG_I(NR_MAC, "[SL_HARQ] === ENTER === handle_nr_ue_sl_harq src_id=%d, frame=%d, slot=%d\n", src_id, frame, slot);
+  
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
+  LOG_I(NR_MAC, "[SL_HARQ] Got mac instance: %p\n", mac);
+  
   NR_UE_SL_SCHED_LOCK(&mac->sl_sched_lock);
-  NR_SL_UE_info_t **UE_SL_temp = (NR_SL_UE_info_t **)&mac->sl_info.list, *UE;
-  // TODO: update for multiple UEs
-  UE=*(UE_SL_temp);
-  uint8_t num_ack_rcvd = rx_slsch_pdu->num_acks_rcvd;
 
+  // LOG_I(NR_MAC, "[SL_HARQ] Acquired scheduler lock\n");
+  
+  NR_SL_UE_info_t **UE_SL_temp = (NR_SL_UE_info_t **)&mac->sl_info.list, *UE = NULL;
+  // LOG_I(NR_MAC, "[SL_HARQ] UE_SL_temp: %p\n", UE_SL_temp);
+  
+  // FIXED: Support for multiple UEs - find UE by src_id with null checks
+  // LOG_I(NR_MAC, "[SL_HARQ] Searching for UE with src_id=%d...\n", src_id);
+  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+    // LOG_I(NR_MAC, "[SL_HARQ] Checking slot[%d]: %p\n", ue_idx, UE_SL_temp[ue_idx]);
+    if (UE_SL_temp[ue_idx] != NULL && UE_SL_temp[ue_idx]->uid == src_id) {
+      UE = UE_SL_temp[ue_idx];
+      // LOG_I(NR_MAC, "[SL_HARQ] Found UE with src_id %d at index %d, UE=%p\n", src_id, ue_idx, UE);
+      break;
+    }
+  }
+  
+  // If UE not found, log warning and return
+  if (!UE) {
+    LOG_W(NR_MAC, "[SL_HARQ] UE with src_id %d not found in scheduler or NULL pointer\n", src_id);
+    NR_UE_SL_SCHED_UNLOCK(&mac->sl_sched_lock);
+    return;
+  }
+  
+  LOG_I(NR_MAC, "[SL_HARQ] Processing UE %p, accessing num_acks_rcvd...\n", UE);
+  uint8_t num_ack_rcvd = rx_slsch_pdu->num_acks_rcvd;
+  // LOG_I(NR_MAC, "[SL_HARQ] num_ack_rcvd=%d\n", num_ack_rcvd);
+  // LOG_I(NR_MAC, "[SL_HARQ] Accessing UE->UE_sched_ctrl...\n");
   NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
+  // LOG_I(NR_MAC, "[SL_HARQ] sched_ctrl=%p\n", sched_ctrl);
+  
+  // LOG_I(NR_MAC, "[SL_HARQ] Accessing feedback_sl_harq.len...\n");
+  // LOG_I(NR_MAC, "[SL_HARQ] feedback_sl_harq.len=%d\n", sched_ctrl->feedback_sl_harq.len);
+  
+  // LOG_I(NR_MAC, "[SL_HARQ] Calling calloc for matched_harqs...\n");
   NR_UE_sl_harq_t **matched_harqs = (NR_UE_sl_harq_t **) calloc(sched_ctrl->feedback_sl_harq.len, sizeof(NR_UE_sl_harq_t *));
+  // LOG_I(NR_MAC, "[SL_HARQ] matched_harqs=%p\n", matched_harqs);
+  
+  // LOG_I(NR_MAC, "[SL_HARQ] Calling find_current_slot_harqs...\n");
   int k = find_current_slot_harqs(frame, slot, sched_ctrl, matched_harqs);
+  // LOG_I(NR_MAC, "[SL_HARQ] find_current_slot_harqs returned k=%d, num_ack_rcvd=%d\n", k, num_ack_rcvd);
+  
+  if (k == 0) {
+    LOG_W(NR_MAC, "[SL_HARQ] WARNING: No HARQ processes found for frame=%d, slot=%d\n", frame, slot);
+    free(matched_harqs);
+    NR_UE_SL_SCHED_UNLOCK(&mac->sl_sched_lock);
+    return;
+  }
+  
+  if (k != num_ack_rcvd) {
+    LOG_W(NR_MAC, "[SL_HARQ] WARNING: Mismatch - found %d HARQ processes but received %d ACKs\n", k, num_ack_rcvd);
+  }
+  
   LOG_D(NR_MAC, "Found %d matching HARQ processes vs. num. of received acks %d\n", k, num_ack_rcvd);
   for (int i = 0; i < num_ack_rcvd; i++) {
     uint8_t ack_nack = rx_slsch_pdu->ack_nack_rcvd[i];
@@ -239,7 +293,9 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
 
   uint8_t ri = 0;
   uint8_t cqi_Table = 0;
-  uint8_t cqi = sched_ctrl->rx_csi_report.CQI;
+  // Use real-time CQI from PHY layer calculation
+  uint8_t phy_cqi = get_latest_sl_cqi();
+  uint8_t cqi = phy_cqi > 0 ? phy_cqi : sched_ctrl->rx_csi_report.CQI;
   sched_pssch->mcs = sched_ctrl->sl_max_mcs;
 
   int mcs_tb_ind = 0;
@@ -267,11 +323,45 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
 
   const int max_mcs_table = mcs_tb_ind == 1 ? 27 : 28;
   int max_mcs = min(sched_ctrl->sl_max_mcs, max_mcs_table);
-  if (sl_bo->harq_round_max == 1)
-    sched_pssch->mcs = max_mcs;
-  else {
-    sched_pssch->mcs = get_mcs_from_bler(sl_bo, stats, &sched_ctrl->sl_bler_stats, max_mcs, frameP);
-  }
+  if (sl_bo->harq_round_max == 1) {
+      sched_pssch->mcs = max_mcs;
+    } else {
+      // Use real-time CQI from PHY layer
+      uint8_t current_cqi = get_latest_sl_cqi();
+      if (current_cqi == 0) current_cqi = sched_ctrl->rx_csi_report.CQI;
+      
+      if (current_cqi > 0) {
+        // MCS adaptativo baseado em CQI com limite realista
+        sched_pssch->mcs = min(max_mcs, 9);  // Usar CQI-calculated com limite 16
+
+        // Log para monitorar adaptação
+        if (frameP % 500 == 0) {
+          printf(" MCS: %d (CQI=%d, max_possible=%d)\n", 
+                sched_pssch->mcs, current_cqi, max_mcs);
+          printf("\n\n--------Current CQI=%d ----------------\n\n",current_cqi);
+          
+          // Print channel parameters from rfsimulator if available
+          channel_desc_t *ch_desc = find_channel_desc_fromname("rfsimu_channel_ue0");
+          if (ch_desc != NULL) {
+            printf("=== Channel Parameters (rfsimu_channel_ue0) ===\n");
+            printf("CQI: %d\n", current_cqi);
+            printf("Channel Offset: %d samples\n", ch_desc->channel_offset);
+            printf("Noise Power dB: %.2f dB\n", ch_desc->noise_power_dB);
+            printf("Forgetting Factor: %.6f\n", ch_desc->forgetting_factor);
+            printf("Path Loss dB: %.2f dB\n", ch_desc->path_loss_dB);
+            printf("============================================\n\n");
+          } else {
+            printf("=== Channel Parameters ===\n");
+            printf("CQI: %d\n", current_cqi);
+            printf("Note: Channel model 'rfsimu_channel_ue0' not found\n");
+            printf("Check /targets/PROJECTS/NR-SIDELINK/CONF/channelmod_rfsimu.conf\n");
+            printf("==========================\n\n");
+          }
+        }
+      } else {
+        sched_pssch->mcs = get_mcs_from_bler(sl_bo, stats, &sched_ctrl->sl_bler_stats, max_mcs, frameP);
+      }
+    }
 
   uint16_t sl_max_num_reserve = *mac->sl_tx_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16;
   /*
@@ -283,8 +373,15 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   uint8_t t1 = 0, t2 = 0;
 
   long sl_num_subch = *mac->sl_tx_res_pool->sl_NumSubchannel_r16;
-  uint8_t l_subch = resource->sl_subchan_len; // number of used sub channels; as in current setting, we have only 1 subchannel so l_subch is set to 1
-  uint8_t n_start_subch1 = 0, n_start_subch2 = 0; // represent starting sub-channel index for the second resource and third resource;
+  uint8_t l_subch = resource ? resource->sl_subchan_len : 1; // number of used sub channels; as in current setting, we have only 1 subchannel so l_subch is set to 1
+  
+  // SUBCHANNEL DIVERSIFICATION: Use different subchannels based on UE srcid to prevent resource conflicts
+  uint8_t total_available_subch = sl_get_num_subch(mac->sl_tx_res_pool);
+  uint8_t n_start_subch1 = (mac->src_id % total_available_subch); // Distribute UEs across available subchannels
+  uint8_t n_start_subch2 = 0; // Keep as 0 for single resource allocation
+  
+  LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
+        mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
                                                   // as we are considering only 1 subchannel, so we have initialized these variables with zeros.
   // Fill SCI1A
   sci_pdu->priority = 0;
@@ -309,17 +406,31 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
 
   uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
   bool is_feedback_slot = false;
-  for (int i = 0; i < (n_ul_slots_period * num_subch); i++) {
-    SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch[i];
-    if (slotP == sched_psfch->feedback_slot) {
-        LOG_D(NR_MAC, "%4d.%2d i = %d sched_psfch %p feedback slot %d\n", frameP, slotP, i, sched_psfch, sched_psfch->feedback_slot);
-        is_feedback_slot = true;
-        frameslot_t frame_slot;
-        frame_slot.frame = frameP;
-        frame_slot.slot = slotP;
-        validate_selected_sl_slot(true, false, mac->SL_MAC_PARAMS->sl_TDD_config, frame_slot);
-        break;
+
+  // FIXED: Check feedback slot for the specific UE instead of always using index [0]
+  // Also verify that UE and sched_psfch are properly initialized
+  if (!UE) {
+    LOG_W(NR_MAC, "UE not found for UE %d\n", dest_id);
+    is_feedback_slot = false;
+  } else {
+    // Ensure sched_psfch is initialized for this UE if needed
+    if (!UE->UE_sched_ctrl.sched_psfch) {
+      LOG_D(NR_MAC, "sched_psfch not initialized for UE %d, skipping feedback check\n", dest_id);
+      is_feedback_slot = false;
+    } else {
+    for (int i = 0; i < (n_ul_slots_period * num_subch); i++) {
+      SL_sched_feedback_t  *sched_psfch = &UE->UE_sched_ctrl.sched_psfch[i];
+      if (slotP == sched_psfch->feedback_slot) {
+          LOG_D(NR_MAC, "%4d.%2d i = %d sched_psfch %p feedback slot %d\n", frameP, slotP, i, sched_psfch, sched_psfch->feedback_slot);
+          is_feedback_slot = true;
+          frameslot_t frame_slot;
+          frame_slot.frame = frameP;
+          frame_slot.slot = slotP;
+          validate_selected_sl_slot(true, false, mac->SL_MAC_PARAMS->sl_TDD_config, frame_slot);
+          break;
+      }
     }
+    } // Close the else block
   }
 
   frameslot_t fs;

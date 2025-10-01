@@ -668,7 +668,15 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
                 0,
                 &is_csi_rs_slot);
     if (phy_data->sl_rx_action == SL_NR_CONFIG_TYPE_RX_PSSCH_SLSCH_PSFCH) {
-      ack_nack_rcvd = calloc(phy_data->num_psfch_pdus, sizeof(ack_nack_rcvd));
+            // FIXED: More permissive allocation - don't restrict to 32 limit for normal operation
+      if (phy_data->num_psfch_pdus > 0) {
+        ack_nack_rcvd = calloc(phy_data->num_psfch_pdus, sizeof(int8_t));
+        if (ack_nack_rcvd == NULL) {
+          LOG_E(NR_PHY, "Failed to allocate memory for ack_nack_rcvd (num_psfch_pdus=%d)\n", phy_data->num_psfch_pdus);
+        }
+      } else {
+        ack_nack_rcvd = NULL;
+      }  
       LOG_D(NR_PHY, "num_psfch_pdus: %d\n", phy_data->num_psfch_pdus);
       for (int k = 0; k < phy_data->num_psfch_pdus; k++) {
         sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu = &phy_data->psfch_pdu_list[k];
@@ -738,6 +746,12 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
 
   //VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PHY_PROCEDURES_UE_TX_SL, VCD_FUNCTION_OUT);
   stop_meas(&sl_phy_params->phy_proc_sl_tx);
+
+  // FIXED: Free allocated memory for ack_nack_rcvd before returning
+  if (ack_nack_rcvd != NULL) {
+    free(ack_nack_rcvd);
+    ack_nack_rcvd = NULL;
+  }
 
   return;
 }
