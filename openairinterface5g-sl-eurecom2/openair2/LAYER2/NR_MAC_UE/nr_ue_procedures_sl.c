@@ -1478,7 +1478,7 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     int r1 = UE->mac_sl_stats.cumul_round[1];
     int r2 = UE->mac_sl_stats.cumul_round[2];
     int r3 = UE->mac_sl_stats.cumul_round[3];
-    int r4 = UE->mac_sl_stats.cumul_round[4]
+    int r4 = UE->mac_sl_stats.cumul_round[4];
     int round_sum = r1 + 2 * r2 + 3 * r3 + 4 * r4;
     int total_tx = r0 + round_sum;
     if (total_tx % 20 == 0 || (total_tx > 299 && total_tx < 305)) {

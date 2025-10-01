@@ -124,7 +124,6 @@ size_t dump_mac_stats_sl(NR_UE_MAC_INST_t *mac, char *output, size_t strlen, boo
       continue;
     }
     
-  SL_UE_iterator(mac->sl_info.list, UE) {
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     NR_UE_sl_mac_stats_t *stats = &UE->mac_sl_stats;
 
