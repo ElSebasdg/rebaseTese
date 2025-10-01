@@ -6,20 +6,12 @@ import sys
 
 def print_help():
     help_text = """
-Usage: ./sl_build_OAI.py [OPTIONS]
+Usage: ./sl_build_OAI.py [--telnet] [--c] [--help]
 
 Options:
-  --telnet   Build with telnet support (adds: --build-lib telnetsrv)
-  --usrp     Build with USRP hardware support (adds: -w USRP)
+  --telnet   Build with telnet support (optional)
   --c        Clean build (runs ./build_oai -c)
   --help     Show this help message and exit
-
-Examples:
-  ./sl_build_OAI.py               # Default build
-  ./sl_build_OAI.py --telnet      # Build with telnet
-  ./sl_build_OAI.py --usrp        # Build for USRP
-  ./sl_build_OAI.py --c           # Clean build
-  ./sl_build_OAI.py --telnet --usrp  # Build with telnet and USRP
 """
     print(help_text)
 
@@ -33,7 +25,7 @@ def find_build_script():
             return path
     return None
 
-def build_oai(enable_telnet=False, enable_usrp=False):
+def build_oai(enable_telnet=False):
     build_script = find_build_script()
 
     if not build_script:
@@ -44,9 +36,6 @@ def build_oai(enable_telnet=False, enable_usrp=False):
 
     if enable_telnet:
         cmd += ["--build-lib", "telnetsrv"]
-
-    if enable_usrp:
-        cmd += ["-w", "USRP"]
 
     print("Running command:", " ".join(cmd))
     subprocess.run(cmd, check=True)
@@ -66,24 +55,26 @@ def clean_build():
 def main():
     args = sys.argv[1:]
 
-    if "--help" in args:
-        print_help()
-        sys.exit(0)
-
-    clean = "--c" in args
-    enable_telnet = "--telnet" in args
-    enable_usrp = "--usrp" in args
-
-    unknown_args = [arg for arg in args if arg not in ("--help", "--telnet", "--usrp", "--c")]
-    if unknown_args:
-        print(f"Error: Unknown argument(s): {' '.join(unknown_args)}\n")
+    if len(args) > 1:
+        print("Error: Only one optional argument '--telnet', '--c', or '--help' is allowed.\n")
         print_help()
         sys.exit(1)
 
-    if clean:
-        clean_build()
+    if len(args) == 1:
+        if args[0] == "--help":
+            print_help()
+            sys.exit(0)
+        elif args[0] == "--telnet":
+            build_oai(enable_telnet=True)
+        elif args[0] == "--c":
+            clean_build()
+        else:
+            print(f"Error: Unknown argument '{args[0]}'.\n")
+            print_help()
+            sys.exit(1)
     else:
-        build_oai(enable_telnet=enable_telnet, enable_usrp=enable_usrp)
+        # no arguments
+        build_oai(enable_telnet=False)
 
 if __name__ == "__main__":
     main()

@@ -38,6 +38,7 @@
 #define SL_CONFIG_STRING_SL_CSI_RS_POWER_CONTROL_OFFSET_SS          "sl_powerControlOffsetSS"
 #define SL_CONFIG_STRING_SL_CSI_RS_SL_CSI_ACQUISITION               "sl_CSI_Acquisition"
 #define SL_CONFIG_STRING_SL_CSI_RS_SL_LATENCYBOUNDCSI_REPORT        "sl_LatencyBoundCSI_Report"
+
 // Helper function to get first available SL UE (duplicate from nr_ue_procedures_sl.c)
 static NR_SL_UE_info_t *get_first_sl_ue_local(NR_UE_MAC_INST_t *mac) {
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
@@ -552,10 +553,7 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     NR_TDD_UL_DL_Pattern_t *tdd = &sl_mac->sl_TDD_config->pattern1;
     const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
     uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        
+    
     // Initialize sched_psfch for the first available UE
     NR_SL_UE_info_t *sl_ue = get_first_sl_ue_local(mac);
     if (sl_ue != NULL) {
@@ -781,9 +779,6 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
 
     const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
     uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
     
     // Initialize sched_psfch for the first available UE
     NR_SL_UE_info_t *sl_ue = get_first_sl_ue_local(mac);

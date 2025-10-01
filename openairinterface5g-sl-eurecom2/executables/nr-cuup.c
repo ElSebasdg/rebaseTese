@@ -72,7 +72,8 @@ rlc_op_status_t rlc_data_req(const protocol_ctxt_t *const pc,
                              const sdu_size_t size,
                              mem_block_t *const buf,
                              const uint32_t *const a,
-                             const uint32_t *const b)
+                             const uint32_t *const b,
+                             nr_intf_type_t intf_type)
 {
   abort();
   return 0;

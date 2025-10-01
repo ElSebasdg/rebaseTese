@@ -214,7 +214,7 @@ uint32_t  nr_dlsch_decoding(PHY_VARS_NR_UE *phy_vars_ue,
 
 int nr_ulsch_encoding(PHY_VARS_NR_UE *ue,
                      NR_UE_ULSCH_t *ulsch,
-                     sl_nr_tx_config_pscch_pssch_pdu_t *pscch_pssch_pdu,
+                     const sl_nr_tx_config_pscch_pssch_pdu_t *pscch_pssch_pdu,
                      NR_DL_FRAME_PARMS* frame_parms,
                      uint8_t harq_pid,
                      unsigned int G);
@@ -247,7 +247,8 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
                             const uint8_t slot,
                             const int gNB_id,
                             nr_phy_data_tx_t *phy_data,
-                            c16_t **txdataF);
+                            c16_t **txdataF,
+                            nr_intf_type_t intf_type);
 
 /** \brief This function does IFFT for PUSCH
 */
@@ -267,13 +268,14 @@ void nr_dlsch_unscrambling(int16_t* llr,
 			   uint32_t n_RNTI);
 
 int32_t nr_rx_pdcch(PHY_VARS_NR_UE *ue,
+                    NR_DL_FRAME_PARMS *frame_parms,
                     UE_nr_rxtx_proc_t *proc,
                     int pscch_flag,
                     int32_t pdcch_est_size,
                     int32_t pdcch_dl_ch_estimates[][pdcch_est_size],
                     int16_t *pdcch_e_rx,
                     fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15,
-                    c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
+                    c16_t rxdataF[][frame_parms->samples_per_slot_wCP]);
 
 
 /*! \brief Performs detection of SSS to find cell ID and other framing parameters (FDD/TDD, normal/extended prefix)
@@ -461,13 +463,15 @@ int8_t nr_ue_decode_psfch0(PHY_VARS_NR_UE *ue,
                          const sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu);
 
 int nr_csi_rs_sinr_estimation(const PHY_VARS_NR_UE *ue,
+                              const NR_DL_FRAME_PARMS *frame_parms,
                               const fapi_nr_dl_config_csirs_pdu_rel15_t *csirs_config_pdu,
                               const uint8_t N_ports,
                               uint8_t mem_offset,
-                              const int32_t csi_rs_estimated_channel_freq[][N_ports][ue->frame_parms.ofdm_symbol_size + FILTER_MARGIN],
+                              const int32_t csi_rs_estimated_channel_freq[][N_ports][frame_parms->ofdm_symbol_size + FILTER_MARGIN],
                               const uint32_t interference_plus_noise_power,
                               const int16_t log2_re,
-                              int32_t *precoded_sinr_dB);
+                              int32_t *precoded_sinr_dB,
+                              nr_intf_type_t intf_type);
 /**@}*/
 #endif
 

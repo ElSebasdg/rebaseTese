@@ -27,7 +27,6 @@
 
 #define SL_DEBUG
 
-
 // Helper function to find SL UE by source ID
 static NR_SL_UE_info_t *find_sl_ue_by_src_id(NR_UE_MAC_INST_t *mac, uint32_t src_id) {
   LOG_W(NR_MAC, "[SL_FIND_DEBUG] Searching for srcid=%u among %d connections\n", src_id, CUR_SL_UE_CONNECTIONS);
@@ -253,7 +252,6 @@ static void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_
           sl_ue->uid, total_size * sizeof(SL_sched_feedback_t));
   }
 }
-
 
 static const int sequence_cyclic_shift_harq_ack_or_ack_or_only_nack[2]
 /* Sequence cyclic shift */ = {  0, 6 };
@@ -993,6 +991,7 @@ int nr_ue_sl_acknack_scheduling(NR_UE_MAC_INST_t *mac, sl_nr_rx_indication_t *rx
 
   psfch_slot = get_feedback_slot(psfch_period, slot);
   const int psfch_index = get_psfch_index(rx_ind->sfn, rx_ind->slot, nr_slots_frame, tdd, n_ul_buf_max_size);
+  
   // Debug connected UEs and find appropriate UE for feedback
   //print_connected_sl_ues(mac, "sl_acknack_scheduling");
   
@@ -1012,7 +1011,6 @@ int nr_ue_sl_acknack_scheduling(NR_UE_MAC_INST_t *mac, sl_nr_rx_indication_t *rx
     return -1;
   }
   
-
   SL_sched_feedback_t  *curr_psfch = &sched_ctrl->sched_psfch[psfch_index];
   psfch_frame = frame;
   frameslot_t fs;
@@ -1046,6 +1044,7 @@ void fill_psfch_params_tx(NR_UE_MAC_INST_t *mac, sl_nr_rx_indication_t *rx_ind,
                           const int nr_slots_frame, int psfch_index) {
 
   NR_SL_BWP_Generic_r16_t *sl_bwp = mac->sl_bwp->sl_BWP_Generic_r16;
+
   // Get the first available UE for PSFCH params
   NR_SL_UE_info_t *sl_ue = get_first_sl_ue(mac);
   if (sl_ue == NULL) {
@@ -1223,7 +1222,6 @@ int find_current_slot_harqs(frame_t frame, sub_frame_t slot, NR_SL_UE_sched_ctrl
   return k;
 }
 
-
 /*
 Following function is used to remove the harq_pids from the feedback list;
 Adds back to available list or retransmission list based on round value.
@@ -1263,16 +1261,10 @@ void configure_psfch_params_rx(int module_idP,
                         ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
   uint16_t num_subch = sl_get_num_subch(mac->sl_rx_res_pool);
   rx_config->sl_rx_config_list[0].rx_psfch_pdu_list = calloc(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
-  NR_SL_UEs_t *UE_info = &mac->sl_info;
-
-  if (*(UE_info->list) == NULL) {
-    LOG_D(NR_MAC, "UE list is empty\n");
-    return;
-  }
 
   psfch_params_t *psfch_params = calloc(1, sizeof(psfch_params_t));
   compute_params(module_idP, psfch_params);
-
+  
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
@@ -1402,7 +1394,7 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_idP);
   int frame = rx_ind->sfn;
   int slot = rx_ind->slot;
-
+  
   if (!pduP){
     LOG_E(NR_MAC, "[SL_PDU_DEBUG] ERROR: NULL PDU pointer, skipping\n");
     return;
@@ -1446,7 +1438,6 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
   LOG_D(NR_MAC, "[SL_RX_DATA] Received SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d, pdu_type=%d\n",
         sl_sch_subheader->SRC, frame, slot, pdu_len, pdu_type);
   
-
   uint8_t psfch_period = 0;
   if (mac->sl_tx_res_pool->sl_PSFCH_Config_r16 &&
       mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16)
@@ -1459,7 +1450,7 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
   
   // Validate srcid compatibility for multi-UE testing
   validate_srcid_compatibility(mac, sl_sch_subheader->SRC);
-
+  
   NR_SL_UE_info_t *UE = find_UE(mac, sl_sch_subheader->SRC);
   // LOG_I(NR_MAC, "[SL_RX_DATA] === find_UE RETURNED === UE=%p\n", UE);
 
@@ -1467,9 +1458,10 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     LOG_W(NR_MAC, "[SL_RX_DATA] Could not find UE with SRC=%d in sl_info list!\n", sl_sch_subheader->SRC);
     return;
   } else {
-    LOG_I(NR_MAC, "[SL_RX_DATA] Found UE with SRC=%d, uid=%d - Processing PDU\n", sl_sch_subheader->SRC, UE->uid);
+    // LOG_I(NR_MAC, "[SL_RX_DATA] Found UE with SRC=%d, uid=%d - Processing PDU\n", sl_sch_subheader->SRC, UE->uid);
   }
 
+  // LOG_I(NR_MAC, "[SL_RX_DATA] === BEFORE PDU TYPE CHECK === pdu_type=%d\n", pdu_type);
   if (pdu_type == SL_NR_RX_PDU_TYPE_SLSCH_PSFCH) {
     // LOG_I(NR_MAC, "[SL_RX_DATA] === CALLING handle_nr_ue_sl_harq === UE uid=%d\n", UE->uid);
     handle_nr_ue_sl_harq(module_idP, frame, slot, rx_slsch_pdu, sl_sch_subheader->SRC);
@@ -1541,7 +1533,9 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
                          (char *)(pduP + mac_subheader_len),
                          mac_len,
                          1,
-                         NULL);
+                         NULL,
+                         sl_sch_subheader->SRC,
+                         sl_sch_subheader->DST);
 	      break;
       case SL_SCH_LCID_SL_CSI_REPORT:
         {
@@ -1628,7 +1622,6 @@ void nr_ue_sl_csi_report_scheduling(int mod_id,
     csi_report->active = true;
   }
 }
-
 
 NR_SL_UE_info_t* find_UE(NR_UE_MAC_INST_t *mac,
                          uint16_t nearby_ue_id) {

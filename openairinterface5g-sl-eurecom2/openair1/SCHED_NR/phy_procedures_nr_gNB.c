@@ -215,7 +215,8 @@ void phy_procedures_gNB_TX(processingData_L1tx_t *msgTx,
                          NULL,
                          NULL,
                          NULL,
-                         NULL);
+                         NULL,
+                         UU);
       csirs->active = 0;
     }
   }
@@ -281,7 +282,7 @@ static void nr_postDecode(PHY_VARS_gNB *gNB, notifiedFIFO_elt_t *req)
       ulsch->active = false;
       ulsch_harq->round = 0;
       LOG_D(PHY, "ULSCH received ok \n");
-      nr_fill_indication((void*)gNB, ulsch->frame, ulsch->slot, rdata->ulsch_id, rdata->harq_pid, 0, 0);
+      nr_fill_indication(gNB, ulsch->frame, ulsch->slot, rdata->ulsch_id, rdata->harq_pid, 0, 0);
       //dumpsig=1;
     } else {
       LOG_D(PHY,
@@ -301,7 +302,7 @@ static void nr_postDecode(PHY_VARS_gNB *gNB, notifiedFIFO_elt_t *req)
             r);
       ulsch->handled = 1;
       LOG_D(PHY, "ULSCH %d in error\n",rdata->ulsch_id);
-      nr_fill_indication((void*)gNB, ulsch->frame, ulsch->slot, rdata->ulsch_id, rdata->harq_pid, 1, 0);
+      nr_fill_indication(gNB, ulsch->frame, ulsch->slot, rdata->ulsch_id, rdata->harq_pid, 1, 0);
       //      dumpsig=1;
     }
     ulsch->last_iteration_cnt = rdata->decodeIterations;
@@ -406,15 +407,14 @@ static int nr_ulsch_procedures(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, int
 
   start_meas(&gNB->ulsch_decoding_stats);
   int nbDecode =
-      nr_ulsch_decoding(gNB, NULL, ULSCH_id, gNB->pusch_vars[ULSCH_id].llr, frame_parms, pusch_pdu, frame_rx, slot_rx, harq_pid, G, NULL, NULL, NULL, -1);
+      nr_ulsch_decoding(gNB, NULL, ULSCH_id, gNB->pusch_vars[ULSCH_id].llr, frame_parms, pusch_pdu, frame_rx, slot_rx, harq_pid, G, NULL, NULL, NULL, NULL, -1);
   stop_meas(&gNB->ulsch_decoding_stats);
   return nbDecode;
 }
 
 
-void nr_fill_indication(void* p, int frame, int slot_rx, int ULSCH_id, uint8_t harq_pid, uint8_t crc_flag, int dtx_flag)
+void nr_fill_indication(PHY_VARS_gNB *gNB, int frame, int slot_rx, int ULSCH_id, uint8_t harq_pid, uint8_t crc_flag, int dtx_flag)
 {
-  PHY_VARS_gNB *gNB = (PHY_VARS_gNB *)p;
   if (!get_softmodem_params()->reorder_thread_disable) 
     pthread_mutex_lock(&gNB->UL_INFO_mutex);
 
@@ -774,6 +774,7 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx)
   const int soffset = (slot_rx & 3) * gNB->frame_parms.symbols_per_slot * gNB->frame_parms.ofdm_symbol_size;
   int offset = 10 * gNB->frame_parms.ofdm_symbol_size + gNB->frame_parms.first_carrier_offset;
   int power_rxF = signal_energy_nodc((int32_t *)&gNB->common_vars.rxdataF[0][soffset + offset + (47 * 12)], 12 * 18);
+  const uint32_t rxdataF_sz = 4 * gNB->frame_parms.symbols_per_slot * gNB->frame_parms.ofdm_symbol_size;
   LOG_D(PHY,"frame %d, slot %d: UL signal energy %d\n",frame_rx,slot_rx,power_rxF);
 
   start_meas(&gNB->phy_proc_rx);
@@ -890,7 +891,7 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx)
 
       VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_NR_RX_PUSCH, 1);
       start_meas(&gNB->rx_pusch_stats);
-      nr_rx_pusch(gNB, NULL, gNB->common_vars.rxdataF, ULSCH_id, frame_rx, slot_rx, ulsch->harq_pid);
+      nr_rx_pusch(gNB, NULL, &gNB->frame_parms, NULL, NULL, rxdataF_sz, (c16_t (*)[rxdataF_sz]) gNB->common_vars.rxdataF[0], ULSCH_id, frame_rx, slot_rx, 0, UU, NULL, ulsch->harq_pid, NULL);
       NR_gNB_PUSCH *pusch_vars = &gNB->pusch_vars[ULSCH_id];
       pusch_vars->ulsch_power_tot = 0;
       pusch_vars->ulsch_noise_power_tot = 0;

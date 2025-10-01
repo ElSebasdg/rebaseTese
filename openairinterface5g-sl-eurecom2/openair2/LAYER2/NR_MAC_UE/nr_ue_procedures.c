@@ -190,6 +190,10 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
   
   LOG_I(NR_MAC, "[SL_INIT] === INITIALIZING SL UE LIST === src_id=%d, max_connections=%d\n", mac->src_id, CUR_SL_UE_CONNECTIONS);
   
+  // Get remote_ue_id from ueinfo if available
+  uint8_t remote_ue_id = (ueinfo != NULL) ? ueinfo->remote_ue_id : 0;
+  LOG_I(NR_MAC, "[SL_INIT] remote_ue_id from config: %d\n", remote_ue_id);
+  
   int k = 0;
   // Initialize structures for all possible UEs (0 to 3), but skip own srcid
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS + 1; i++) {
@@ -243,6 +247,7 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
     }
   }
 }
+
 void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac)
 {
   // default values as defined in 38.331 sec 9.2.2
@@ -3775,7 +3780,9 @@ void nr_ue_process_mac_pdu(nr_downlink_indication_t *dl_info,
                          (char *)(pduP + mac_subheader_len),
                          mac_len,
                          1,
-                         NULL);
+                         NULL,
+                         0,
+                         0);
         break;
       default:
         LOG_W(MAC, "unknown lcid %02x\n", rx_lcid);

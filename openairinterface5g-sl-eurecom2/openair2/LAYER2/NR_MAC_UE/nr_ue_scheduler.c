@@ -2730,7 +2730,8 @@ int nr_ue_get_sdu_mac_ce_pre(module_id_t module_idP,
                       uint8_t gNB_index,
                       uint8_t *ulsch_buffer,
                       uint16_t buflen,
-                      NR_UE_MAC_CE_INFO *mac_ce_p) {
+                      NR_UE_MAC_CE_INFO *mac_ce_p,
+                      nr_intf_type_t intf_type) {
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_idP);
 
   int num_lcg_id_with_data = 0;
@@ -2767,7 +2768,7 @@ int nr_ue_get_sdu_mac_ce_pre(module_id_t module_idP,
                 "Inconsistent BSR Trigger=%d !\n",
                 mac->BSR_reporting_active);
 
-    uint8_t size_bsr = get_softmodem_params()->sl_mode ? sizeof(NR_SL_BSR_SHORT) : sizeof(NR_BSR_SHORT);
+    uint8_t size_bsr = (intf_type == PC5) ? sizeof(NR_SL_BSR_SHORT) : sizeof(NR_BSR_SHORT);
     //A Regular or Periodic BSR can only be sent if TBS is sufficient as transmitting only a BSR is not allowed if UE has data to transmit
     if (num_lcg_id_with_data <= 1) {
       if (buflen >= (size_bsr + sizeof(NR_MAC_SUBHEADER_FIXED) + 1)) {
@@ -3001,7 +3002,7 @@ uint8_t nr_ue_get_sdu(module_id_t module_idP,
   uint8_t *pdu = ulsch_buffer;
 
   //nr_ue_get_sdu_mac_ce_pre updates all mac_ce related header field related to length
-  mac_ce_p->tot_mac_ce_len = nr_ue_get_sdu_mac_ce_pre(module_idP, CC_id, frameP, subframe, gNB_index, ulsch_buffer, buflen, mac_ce_p);
+  mac_ce_p->tot_mac_ce_len = nr_ue_get_sdu_mac_ce_pre(module_idP, CC_id, frameP, subframe, gNB_index, ulsch_buffer, buflen, mac_ce_p, UU);
   mac_ce_p->total_mac_pdu_header_len = mac_ce_p->tot_mac_ce_len;
 
   LOG_D(NR_MAC, "In %s: [UE %d] [%d.%d] process UL transport block at with size TBS = %d bytes \n", __FUNCTION__, module_idP, frameP, subframe, buflen);
@@ -3217,7 +3218,7 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
   uint32_t slot_in_16frames = (frame_16 * slots_per_frame) + slot;
   uint16_t frame_tx_16 = frame_tx % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_tx_in_16frames = (frame_tx_16 * slots_per_frame) + slot_tx;
-  
+
   LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame, slot, frame_16, slot_in_16frames);
   LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
@@ -3481,11 +3482,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
 
   NR_SL_UEs_t *UE_info = &mac->sl_info;
 
-  if (*(UE_info->list) == NULL) {
-    LOG_D(NR_MAC, "UE list is empty\n");
-    return is_resource_allocated;
-  }
-
   preprocess(mac, frame, slot, &feedback_frame, &feedback_slot, sl_bwp, configured_PSFCH);
 
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
@@ -3651,8 +3647,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
                                           lcid,
                                           ndata,
                                           (char *)pdu,
-                                          0,
-                                          0);
+                                          sl_sch_subheader->SRC,
+                                          sl_sch_subheader->DST);
             stop_meas(&mac->rlc_data_req);
             AssertFatal(buflen_remain >= sdu_length, "In %s: LCID = 0x%02x RLC has segmented %d bytes but MAC has max %d remaining bytes\n",
                         __FUNCTION__,
@@ -3700,7 +3696,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
             mac_ce_p->total_mac_pdu_header_len = total_mac_pdu_header_len;
 
             //nr_ue_get_sdu_mac_ce_pre updates all mac_ce related header field related to length
-            mac_ce_p->tot_mac_ce_len = nr_ue_get_sdu_mac_ce_pre(0, 0, frame, slot, 0, pdu, buflen, mac_ce_p);
+            mac_ce_p->tot_mac_ce_len = nr_ue_get_sdu_mac_ce_pre(0, 0, frame, slot, 0, pdu, buflen, mac_ce_p, PC5);
             buflen_remain -= mac_ce_p->tot_mac_ce_len;
             pdu += mac_ce_p->tot_mac_ce_len;
             LOG_D(NR_PHY, "buflen_remain %d, sdu_length_total %d, total_mac_pdu_header_len %d, adding tot_mac_ce_len %d, \n", buflen_remain, mac_ce_p->sdu_length_total, mac_ce_p->total_mac_pdu_header_len, mac_ce_p->tot_mac_ce_len);
@@ -3956,6 +3952,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       //LOG_W(NR_MAC, "  PSFCH is disabled or not configured!\n");
     }
   }
+
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
   sl_nr_phy_config_request_t *sl_cfg = &sl_mac->sl_phy_config.sl_config_req;
 
@@ -4073,9 +4070,10 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       prev_slot = slot;
   }
 
-  if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
+  if (mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
-    bool is_resource_allocated = nr_ue_sl_pssch_scheduler(mac, sl_ind, mac->sl_bwp, mac->sl_tx_res_pool, &tx_config, resource, &tti_action);
+    sl_resource_info_t *resource_p = NULL; // TODO: After fixing the resource allocation code, the resource variable should have the valid assigned resources
+    bool is_resource_allocated = nr_ue_sl_pssch_scheduler(mac, sl_ind, mac->sl_bwp, mac->sl_tx_res_pool, &tx_config, resource_p, &tti_action);
     if (is_resource_allocated && mac->sci2_pdu.csi_req) {
       nr_ue_sl_csi_rs_scheduler(mac, mu, mac->sl_bwp, &tx_config, NULL, &tti_action);
       LOG_D(NR_MAC, "%4d.%2d Scheduling CSI-RS\n", frame, slot);
@@ -4148,7 +4146,6 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list = CALLOC(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
   sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu_list = tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list;
   int k = 0;
-
 
   // FIXED: Check all UEs instead of just [0], with null checks
   for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
@@ -4842,7 +4839,7 @@ uint8_t get_random_reselection_counter(uint16_t rri) {
     }
 
     LOG_D(NR_MAC, "Range to choose random reselection counter. min: %d max: %d\n", min_res_cntr, max_res_cntr);
-    return min_res_cntr;
+    return (rand() % (max_res_cntr - min_res_cntr + 1)) + min_res_cntr;
 }
 
 List_t* get_candidate_resources(frameslot_t *frame_slot, NR_UE_MAC_INST_t *mac, List_t *sensing_data, List_t *transmit_history) {

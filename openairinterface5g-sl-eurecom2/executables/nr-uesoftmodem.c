@@ -87,6 +87,7 @@ unsigned short config_frames[4] = {2,9,11,13};
 #include <openair1/PHY/MODULATION/nr_modulation.h>
 #include "openair2/GNB_APP/gnb_paramdef.h"
 #include "openair2/RRC/NR_UE/sl_preconfig_paramvalues.h"
+#include "openair2/LAYER2/nr_srap/nr_srap_header.h"
 
 extern const char *duplex_mode[];
 THREAD_STRUCT thread_struct;
@@ -282,6 +283,8 @@ void set_options(int CC_id, PHY_VARS_NR_UE *UE){
   UE->tx_power_max_dBm     = tx_max_power[CC_id];
   UE->rf_map.card          = card_offset;
   UE->rf_map.chain         = CC_id + chain_offset;
+  UE->rf_map_sl.card       = card_offset + 1;
+  UE->rf_map_sl.chain      = CC_id + chain_offset + 1;
   UE->max_ldpc_iterations  = nrUE_params.max_ldpc_iterations;
   UE->UE_scan_carrier      = nrUE_params.UE_scan_carrier;
   UE->UE_fo_compensation   = nrUE_params.UE_fo_compensation;
@@ -291,6 +294,7 @@ void set_options(int CC_id, PHY_VARS_NR_UE *UE){
   UE->chest_time           = nrUE_params.chest_time;
   UE->no_timing_correction = nrUE_params.no_timing_correction;
   UE->timing_advance       = nrUE_params.timing_advance;
+  UE->timing_advance_sl    = nrUE_params.timing_advance_sl;
 
   LOG_I(PHY,"Set UE_fo_compensation %d, UE_scan_carrier %d, UE_no_timing_correction %d \n, chest-freq %d, chest-time %d\n",
         UE->UE_fo_compensation, UE->UE_scan_carrier, UE->no_timing_correction, UE->chest_freq, UE->chest_time);
@@ -313,25 +317,20 @@ void set_options(int CC_id, PHY_VARS_NR_UE *UE){
 
 }
 
-void init_openair0(bool is_sidelink) {
-  int card;
-  int freq_off = 0;
-  NR_DL_FRAME_PARMS *frame_parms = &PHY_vars_UE_g[0][0]->frame_parms;
-  if (is_sidelink)
-    frame_parms = &PHY_vars_UE_g[0][0]->SL_UE_PHY_PARAMS.sl_frame_params;
-
-  for (card=0; card<MAX_CARDS; card++) {
-    uint64_t dl_carrier, ul_carrier;
+void init_openair0() {
+  NR_DL_FRAME_PARMS *frame_parms;
+  for (int card = 0; card < MAX_CARDS; card++) {
+    // Assigning even cards to represent the Uu interface and odd cards to represent the PC5 interface.
+    if (card % 2 == 0)
+      frame_parms = &PHY_vars_UE_g[0][0]->frame_parms;
+    else
+      frame_parms = &PHY_vars_UE_g[0][0]->SL_UE_PHY_PARAMS.sl_frame_params;
+    uint64_t dl_carrier = frame_parms->dl_CarrierFreq;
+    uint64_t ul_carrier = frame_parms->ul_CarrierFreq;
     openair0_cfg[card].configFilename    = NULL;
     openair0_cfg[card].threequarter_fs   = frame_parms->threequarter_fs;
-    openair0_cfg[card].sample_rate       = IS_SOFTMODEM_RFSIM ? frame_parms->samples_per_subframe * 1e3 : 46080000;
+    openair0_cfg[card].sample_rate       = frame_parms->samples_per_subframe * 1e3;
     openair0_cfg[card].samples_per_frame = frame_parms->samples_per_frame;
-
-    if (frame_parms->frame_type==TDD)
-      openair0_cfg[card].duplex_mode = duplex_mode_TDD;
-    else
-      openair0_cfg[card].duplex_mode = duplex_mode_FDD;
-
     openair0_cfg[card].Mod_id = 0;
     openair0_cfg[card].num_rb_dl = frame_parms->N_RB_DL;
     openair0_cfg[card].clock_source = get_softmodem_params()->clock_source;
@@ -339,7 +338,10 @@ void init_openair0(bool is_sidelink) {
     openair0_cfg[card].tune_offset = get_softmodem_params()->tune_offset;
     openair0_cfg[card].tx_num_channels = min(4, frame_parms->nb_antennas_tx);
     openair0_cfg[card].rx_num_channels = min(4, frame_parms->nb_antennas_rx);
-
+    if (frame_parms->frame_type == TDD)
+      openair0_cfg[card].duplex_mode = duplex_mode_TDD;
+    else
+      openair0_cfg[card].duplex_mode = duplex_mode_FDD;
     LOG_I(PHY, "HW: Configuring card %d, sample_rate %f, tx/rx num_channels %d/%d, duplex_mode %s\n",
       card,
       openair0_cfg[card].sample_rate,
@@ -347,26 +349,24 @@ void init_openair0(bool is_sidelink) {
       openair0_cfg[card].rx_num_channels,
       duplex_mode[openair0_cfg[card].duplex_mode]);
 
-    if (is_sidelink) {
+    if (card % 2 == 1) { // sidelink for odd indices
       dl_carrier = frame_parms->dl_CarrierFreq;
       ul_carrier = frame_parms->ul_CarrierFreq;
     } else
       nr_get_carrier_frequencies(PHY_vars_UE_g[0][0], &dl_carrier, &ul_carrier);
 
+    int freq_off = 0;
     nr_rf_card_config_freq(&openair0_cfg[card], ul_carrier, dl_carrier, freq_off);
-
     nr_rf_card_config_gain(&openair0_cfg[card], rx_gain_off);
-
     openair0_cfg[card].configFilename = get_softmodem_params()->rf_config_file;
 
     if (usrp_args) openair0_cfg[card].sdr_addrs = usrp_args;
     if (tx_subdev) openair0_cfg[card].tx_subdev = tx_subdev;
     if (rx_subdev) openair0_cfg[card].rx_subdev = rx_subdev;
-
   }
 }
 
-static void init_pdcp(int ue_id) {
+static void init_pdcp(int ue_id, bool srap_enabled) {
   uint32_t pdcp_initmask = (!IS_SOFTMODEM_NOS1) ? LINK_ENB_PDCP_TO_GTPV1U_BIT : (LINK_ENB_PDCP_TO_GTPV1U_BIT | PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT);
 
   /*if (IS_SOFTMODEM_RFSIM || (nfapi_getmode()==NFAPI_UE_STUB_PNF)) {
@@ -383,6 +383,12 @@ static void init_pdcp(int ue_id) {
   nr_pdcp_module_init(pdcp_initmask, ue_id);
   pdcp_set_rlc_data_req_func((send_rlc_data_req_func_t) rlc_data_req);
   pdcp_set_pdcp_data_ind_func((pdcp_data_ind_func_t) pdcp_data_ind);
+  // creates srap module, which will instanitate srap manager responsible for creating srap entitites and managing the entities operations
+  if (srap_enabled) {
+    bool gNB_flag = false;
+    nr_srap_layer_init(gNB_flag);
+    srap_module_init(gNB_flag);
+  }
 }
 
 // Stupid function addition because UE itti messages queues definition is common with eNB
@@ -482,6 +488,14 @@ int main( int argc, char **argv ) {
   config_getlist(&SL_UEINFOList, NULL, 0, aprefix);
   sprintf(aprefix, "%s.[%i].%s.[%i]", SL_CONFIG_STRING_SL_PRECONFIGURATION, 0, SL_CONFIG_STRING_UEINFO, 0);
   config_get(SL_UEINFO, sizeof(SL_UEINFO)/sizeof(paramdef_t), aprefix);
+  bool srap_enabled = get_softmodem_params()->relay_type > 0 ? true : false;
+  if (srap_enabled) {
+    // FIXIT: This is temporary code until we get the ue configurations via RRC
+    if (!get_softmodem_params()->remote_ue_id)
+      get_softmodem_params()->remote_ue_id = ueinfo.remote_ue_id;
+    if (!get_softmodem_params()->is_relay_ue)
+      get_softmodem_params()->is_relay_ue = ueinfo.is_relay_ue;
+  }
 
   init_NR_UE(1, uecap_file, rrc_config_path, &ueinfo);
 
@@ -490,13 +504,14 @@ int main( int argc, char **argv ) {
   ue_id_g = (node_number == 0) ? 0 : node_number - 2;
   AssertFatal(ue_id_g >= 0, "UE id is expected to be nonnegative.\n");
 
+  uint8_t sl_mode = get_softmodem_params()->sl_mode;
   if(IS_SOFTMODEM_NOS1 || get_softmodem_params()->sa || get_softmodem_params()->nsa) {
-    if(node_number == 0 && get_softmodem_params()->sl_mode == 0) {
-      init_pdcp(0);
-    } else if (get_softmodem_params()->sl_mode == 2) {
-      init_pdcp(1+ueinfo.srcid);
+    if(node_number == 0 && (sl_mode == 0 || sl_mode == 1)) {
+      init_pdcp(0, srap_enabled);
+    } else if (sl_mode == 2) {
+      init_pdcp(1+ueinfo.srcid, srap_enabled);
     } else {
-      init_pdcp(mode_offset + ue_id_g);
+      init_pdcp(mode_offset + ue_id_g, srap_enabled);
     }
   }
 
@@ -548,7 +563,6 @@ int main( int argc, char **argv ) {
       UE[CC_id]->sl_mode = get_softmodem_params()->sl_mode;
 
       if (UE[CC_id]->sl_mode) {
-        AssertFatal(UE[CC_id]->sl_mode == 2, "Only Sidelink mode 2 supported. Mode 1 not yet supported\n");
         nr_UE_configure_Sidelink(0, get_nrUE_params()->sync_ref, &ueinfo);
         DevAssert(mac->if_module != NULL && mac->if_module->sl_phy_config_request != NULL);
         sl_nr_ue_phy_params_t *sl_phy = &UE[CC_id]->SL_UE_PHY_PARAMS;
@@ -560,9 +574,7 @@ int main( int argc, char **argv ) {
       init_nr_ue_vars(UE[CC_id], 0, abstraction_flag);
     }
 
-    bool is_sl = (get_softmodem_params()->sl_mode) ? 1 : 0;
-
-    init_openair0(is_sl);
+    init_openair0();
     // init UE_PF_PO and mutex lock
     pthread_mutex_init(&ue_pf_po_mutex, NULL);
     memset (&UE_PF_PO[0][0], 0, sizeof(UE_PF_PO_t)*NUMBER_OF_UE_MAX*MAX_NUM_CCs);
@@ -609,6 +621,8 @@ int main( int argc, char **argv ) {
       PHY_VARS_NR_UE *phy_vars = PHY_vars_UE_g[0][CC_id];
       if (phy_vars && phy_vars->rfdevice.trx_end_func)
         phy_vars->rfdevice.trx_end_func(&phy_vars->rfdevice);
+      if (phy_vars && phy_vars->rfdevice_sl.trx_end_func)
+        phy_vars->rfdevice_sl.trx_end_func(&phy_vars->rfdevice_sl);
     }
   }
 

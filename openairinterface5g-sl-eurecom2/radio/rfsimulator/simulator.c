@@ -54,6 +54,7 @@
 #include "rfsimulator.h"
 
 #define PORT 4043 //default TCP port for this simulator
+#define PORT_SL 4143 //default TCP port for this simulator
 #define CirSize 6144000 // 100ms is enough
 #define sampleToByte(a,b) ((a)*(b)*sizeof(sample_t))
 #define byteToSample(a,b) ((a)/(sizeof(sample_t)*(b)))
@@ -78,7 +79,9 @@
 #define simOpt PARAMFLAG_NOFREE|PARAMFLAG_CMDLINE_NOPREFIXENABLED
 #define RFSIMULATOR_PARAMS_DESC {					\
     {"serveraddr",             "<ip address to connect to>\n",        simOpt,  .strptr=&rfsimulator->ip,               .defstrval="127.0.0.1",           TYPE_STRING,    0 },\
+    {"serveraddrsl",           "<ip address to connect to>\n",        simOpt,  .strptr=&rfsimulator->ip_sl,            .defstrval="127.0.0.1",           TYPE_STRING,    0 },\
     {"serverport",             "<port to connect to>\n",              simOpt,  .u16ptr=&(rfsimulator->port),           .defuintval=PORT,                 TYPE_UINT16,    0 },\
+    {"serverportsl",           "<port to connect to>\n",              simOpt,  .u16ptr=&(rfsimulator->port_sl),        .defuintval=PORT_SL,              TYPE_UINT16,    0 },\
     {RFSIMU_OPTIONS_PARAMNAME, RFSIM_CONFIG_HELP_OPTIONS,             0,       .strlistptr=NULL,                       .defstrlistval=NULL,              TYPE_STRINGLIST,0 },\
     {"IQfile",                 "<file path to use when saving IQs>\n",simOpt,  .strptr=&saveF,                         .defstrval="/tmp/rfsimulator.iqs",TYPE_STRING,    0 },\
     {"modelname",              "<channel model name>\n",              simOpt,  .strptr=&modelname,                     .defstrval="AWGN",                TYPE_STRING,    0 },\
@@ -128,7 +131,9 @@ typedef struct {
   openair0_timestamp lastWroteTS;
   uint64_t typeStamp;
   char *ip;
+  char *ip_sl;
   uint16_t port;
+  uint16_t port_sl;
   int saveIQfile;
   buffer_t buf[FD_SETSIZE];
   int rx_num_channels;
@@ -310,7 +315,8 @@ static void rfsimulator_readconfig(rfsimulator_state_t *rfsimulator) {
   }
 
   if ( strncasecmp(rfsimulator->ip,"enb",3) == 0 ||
-       strncasecmp(rfsimulator->ip,"server",3) == 0 )
+       strncasecmp(rfsimulator->ip,"server",3) == 0 ||
+       strncasecmp(rfsimulator->ip_sl,"server",3) == 0 )
     rfsimulator->typeStamp = ENB_MAGICDL;
   else
     rfsimulator->typeStamp = UE_MAGICDL;
@@ -569,6 +575,27 @@ static int startServer(openair0_device *device) {
   return 0;
 }
 
+static int startServerSL(openair0_device *device) {
+  rfsimulator_state_t *t = (rfsimulator_state_t *) device->priv;
+  t->typeStamp = ENB_MAGICDL;
+  AssertFatal((t->listen_sock = socket(AF_INET, SOCK_STREAM, 0)) >= 0, "");
+  int enable = 1;
+  AssertFatal(setsockopt(t->listen_sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == 0, "");
+  struct sockaddr_in addr = {
+                              .sin_family = AF_INET,
+                              .sin_port = htons(t->port_sl),
+                              .sin_addr = {.s_addr = INADDR_ANY}
+                            };
+  int rc = bind(t->listen_sock, (struct sockaddr *)&addr, sizeof(addr));
+  AssertFatal(rc == 0, "bind failed: errno %d, %s", errno, strerror(errno));
+  AssertFatal(listen(t->listen_sock, 5) == 0, "");
+  struct epoll_event ev = {0};
+  ev.events = EPOLLIN;
+  ev.data.fd = t->listen_sock;
+  AssertFatal(epoll_ctl(t->epollfd, EPOLL_CTL_ADD,  t->listen_sock, &ev) != -1, "");
+  return 0;
+}
+
 static int startClient(openair0_device *device) {
   rfsimulator_state_t *t = device->priv;
   t->typeStamp=UE_MAGICDL;
@@ -587,6 +614,36 @@ static int startClient(openair0_device *device) {
 
   while(!connected) {
     LOG_I(HW,"rfsimulator: trying to connect to %s:%d\n", t->ip, t->port);
+
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+      LOG_I(HW,"rfsimulator: connection established\n");
+      connected=true;
+    }
+
+    perror("rfsimulator");
+    sleep(1);
+  }
+
+  setblocking(sock, notBlocking);
+  allocCirBuf(t, sock);
+  return 0;
+}
+
+static int startClientSL(openair0_device *device) {
+  rfsimulator_state_t *t = device->priv;
+  t->typeStamp=UE_MAGICDL;
+  int sock;
+  AssertFatal((sock = socket(AF_INET, SOCK_STREAM, 0)) >= 0, "");
+  struct sockaddr_in addr = {
+                              .sin_family = AF_INET,
+                              .sin_port = htons(t->port_sl),
+                              .sin_addr = { .s_addr= INADDR_ANY}
+                            };
+  addr.sin_addr.s_addr = inet_addr(t->ip_sl);
+  bool connected=false;
+
+  while(!connected) {
+    LOG_I(HW,"rfsimulator: SL trying to connect to %s:%d\n", t->ip_sl, t->port_sl);
 
     if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
       LOG_I(HW,"rfsimulator: connection established\n");
@@ -955,6 +1012,9 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
   device->trx_start_func       = rfsimulator->typeStamp == ENB_MAGICDL ?
                                  startServer :
                                  startClient;
+  device->trx_start_func_sl    = rfsimulator->typeStamp == ENB_MAGICDL ?
+                                 startServerSL :
+                                 startClientSL;
   device->trx_get_stats_func   = rfsimulator_get_stats;
   device->trx_reset_stats_func = rfsimulator_reset_stats;
   device->trx_end_func         = rfsimulator_end;

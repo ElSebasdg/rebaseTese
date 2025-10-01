@@ -44,7 +44,7 @@
 
 int nr_ulsch_encoding(PHY_VARS_NR_UE *ue,
                       NR_UE_ULSCH_t *ulsch,
-                      sl_nr_tx_config_pscch_pssch_pdu_t *pscch_pssch_pdu,
+                      const sl_nr_tx_config_pscch_pssch_pdu_t *pscch_pssch_pdu,
                       NR_DL_FRAME_PARMS* frame_parms,
                       uint8_t harq_pid,
                       unsigned int G) {
@@ -55,7 +55,7 @@ int nr_ulsch_encoding(PHY_VARS_NR_UE *ue,
 ///////////
 
   unsigned int crc = 1;
-  NR_UL_UE_HARQ_t *harq_process = get_softmodem_params()->sl_mode ? &ue->sl_harq_processes[harq_pid] : &ue->ul_harq_processes[harq_pid];
+  NR_UL_UE_HARQ_t *harq_process = pscch_pssch_pdu == NULL ? &ue->ul_harq_processes[harq_pid] : &ue->sl_harq_processes[harq_pid];
   uint16_t nb_rb = pscch_pssch_pdu == NULL ? ulsch->pusch_pdu.rb_size : pscch_pssch_pdu->l_subch * pscch_pssch_pdu->subchannel_size;
   uint32_t A = (pscch_pssch_pdu == NULL ? ulsch->pusch_pdu.pusch_data.tb_size : pscch_pssch_pdu->tb_size)<<3;
   uint32_t *pz = &harq_process->Z;

@@ -128,6 +128,7 @@ void free_gNB_dlsch(NR_gNB_DLSCH_t *dlsch, uint16_t N_RB, const NR_DL_FRAME_PARM
 */
 void nr_rx_pusch(PHY_VARS_gNB *gNB,
                  PHY_VARS_NR_UE *ue,
+                 NR_DL_FRAME_PARMS *frame_parms,
                  UE_nr_rxtx_proc_t *proc,
                  nr_phy_data_t *phy_data,
                  int rxFSz,
@@ -135,6 +136,9 @@ void nr_rx_pusch(PHY_VARS_gNB *gNB,
                  uint8_t UE_id,
                  uint32_t frame,
                  uint8_t slot,
+                 uint8_t nb_antennas_tx,
+                 nr_intf_type_t intf_type,
+                 void (* _nr_ue_csi_rs_procedures)(PHY_VARS_NR_UE *ue, NR_DL_FRAME_PARMS *frame_parms, UE_nr_rxtx_proc_t *proc, c16_t rxdataF[][frame_parms->samples_per_slot_wCP], nr_intf_type_t intf_type),
                  unsigned char harq_pid,
                  bool *is_csi_rs_slot
                  );
@@ -161,6 +165,7 @@ void nr_ulsch_extract_rbs(int rxFSz,
                           uint32_t nrOfLayers,
                           uint32_t num_dmrs_cdm_grps_no_data,
                           uint32_t dmrs_config_type,
+                          nr_intf_type_t intf_type,
                           NR_DL_FRAME_PARMS *frame_parms,
                           nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *csi_params);
 
@@ -391,7 +396,8 @@ void nr_generate_csi_rs(const NR_DL_FRAME_PARMS *frame_parms,
                         uint8_t *N_ports,
                         uint8_t *j_cdm,
                         uint8_t *k_overline,
-                        uint8_t *l_overline);
+                        uint8_t *l_overline,
+                        nr_intf_type_t intf_type);
 
 void free_nr_prach_entry(PHY_VARS_gNB *gNB, int prach_id);
 

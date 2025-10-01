@@ -1004,6 +1004,7 @@ set(PHY_SRC_UE
   ${OPENAIR1_DIR}/PHY/NR_TRANSPORT/nr_scrambling.c
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/scrambling_luts.c
   ${OPENAIR1_DIR}/PHY/NR_UE_TRANSPORT/srs_modulation_nr.c
+  ${OPENAIR1_DIR}/PHY/NR_UE_TRANSPORT/nr_pscch_pssch_rx.c
   )
 
   set(PHY_NR_SRC
@@ -1029,6 +1030,7 @@ set(PHY_SRC_UE
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/ul_ref_seq_nr.c
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/nr_dmrs_rx.c
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/nr_gold.c
+  ${OPENAIR1_DIR}/PHY/NR_REFSIG/nr_gold_ue.c
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/nr_gen_mod_table.c
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/dmrs_nr.c
   ${OPENAIR1_DIR}/PHY/NR_REFSIG/ptrs_nr.c
@@ -1231,7 +1233,15 @@ set(NR_SDAP_SRC
   ${OPENAIR2_DIR}/SDAP/nr_sdap/nr_sdap.c
   ${OPENAIR2_DIR}/SDAP/nr_sdap/nr_sdap_entity.c
   )
-  
+
+set(NR_SRAP_SRC
+  ${OPENAIR2_DIR}/LAYER2/nr_srap/nr_srap_header.c
+  ${OPENAIR2_DIR}/LAYER2/nr_srap/nr_srap_sdu.c
+  ${OPENAIR2_DIR}/LAYER2/nr_srap/nr_srap_entity.c
+  ${OPENAIR2_DIR}/LAYER2/nr_srap/nr_srap_oai_api.c
+  ${OPENAIR2_DIR}/LAYER2/nr_srap/nr_srap_manager.c
+  )
+
 set(L2_SRC
   ${PDCP_DIR}/pdcp.c
   ${PDCP_DIR}/pdcp_fifo.c
@@ -1275,6 +1285,7 @@ set(L2_NR_SRC
   ${NR_RLC_SRC}
   ${NR_PDCP_SRC}
   ${NR_SDAP_SRC}
+  ${NR_SRAP_SRC}
   ${NR_RRC_DIR}/rrc_gNB.c
   ${NR_RRC_DIR}/nr_rrc_common.c
   ${NR_RRC_DIR}/L2_nr_interface.c
@@ -1313,6 +1324,7 @@ set(NR_L2_SRC_UE
   ${NR_RLC_SRC}
   ${NR_PDCP_SRC}
   ${NR_SDAP_SRC}
+  ${NR_SRAP_SRC}
   ${NR_UE_RRC_DIR}/L2_interface_ue.c
   ${NR_UE_RRC_DIR}/main_ue.c
   ${NR_RRC_DIR}/nr_rrc_config.c
@@ -2110,6 +2122,7 @@ add_executable(nr-cuup
   ${OPENAIR2_DIR}/E1AP/e1ap_setup.c
   ${NR_PDCP_SRC}
   ${NR_SDAP_SRC}
+  ${NR_SRAP_SRC}
   )
 
 target_link_libraries(nr-cuup PRIVATE

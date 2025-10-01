@@ -671,15 +671,14 @@ void nr_pdcch_detection_mrc(NR_DL_FRAME_PARMS *frame_parms,
 }
 
 int32_t nr_rx_pdcch(PHY_VARS_NR_UE *ue,
+                    NR_DL_FRAME_PARMS *frame_parms,
                     UE_nr_rxtx_proc_t *proc,
                     int pscch_flag,
                     int32_t pdcch_est_size,
                     int32_t pdcch_dl_ch_estimates[][pdcch_est_size],
                     int16_t *pdcch_e_rx,
                     fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15,
-                    c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]) {
-
-  NR_DL_FRAME_PARMS *frame_parms = &ue->frame_parms;
+                    c16_t rxdataF[][frame_parms->samples_per_slot_wCP]) {
 
   uint8_t log2_maxh, aarx;
   int32_t avgs;
@@ -709,7 +708,7 @@ int32_t nr_rx_pdcch(PHY_VARS_NR_UE *ue,
   for (int s=rel15->coreset.StartSymbolIndex; s<(rel15->coreset.StartSymbolIndex+rel15->coreset.duration); s++) {
     LOG_D(NR_PHY,"in nr_pdcch_extract_rbs_single(rxdataF -> rxdataF_ext || dl_ch_estimates -> dl_ch_estimates_ext)\n");
 
-    nr_pdcch_extract_rbs_single(ue->frame_parms.samples_per_slot_wCP,
+    nr_pdcch_extract_rbs_single(frame_parms->samples_per_slot_wCP,
                                 rxdataF,
                                 pdcch_est_size,
                                 pdcch_dl_ch_estimates,
@@ -808,39 +807,6 @@ int32_t nr_rx_pdcch(PHY_VARS_NR_UE *ue,
   LOG_D(PHY,"Ending nr_rx_pdcch() function\n");
 
   return (0);
-}
-
-
-
-void nr_pdcch_unscrambling(int16_t *e_rx,
-                           uint16_t scrambling_RNTI,
-                           uint32_t length,
-                           uint16_t pdcch_DMRS_scrambling_id,
-                           int16_t *z2,
-			   int sci_flag) {
-  int i;
-  uint8_t reset;
-  uint32_t x1 = 0, x2 = 0, s = 0;
-  uint16_t n_id; //{0,1,...,65535}
-  uint32_t rnti = (uint32_t) scrambling_RNTI;
-  reset = 1;
-  // x1 is set in first call to lte_gold_generic
-  n_id = pdcch_DMRS_scrambling_id;
-  x2 = sci_flag == 0 ? ((rnti<<16) + n_id) : ((n_id<<15) + 1010); //mod 2^31 is implicit //this is c_init in 38.211 v15.1.0 Section 7.3.2.3
-
-  LOG_D(PHY,"PDCCH Unscrambling x2 %x : scrambling_RNTI %x\n", x2, rnti);
-
-  for (i = 0; i < length; i++) {
-    if ((i & 0x1f) == 0) {
-      s = lte_gold_generic(&x1, &x2, reset);
-      reset = 0;
-    }
-
-    if (((s >> (i % 32)) & 1) == 1)
-      z2[i] = -e_rx[i];
-    else
-      z2[i]=e_rx[i];
-  }
 }
 
 

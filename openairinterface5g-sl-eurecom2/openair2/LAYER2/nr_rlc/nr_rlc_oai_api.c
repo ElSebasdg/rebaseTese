@@ -22,6 +22,7 @@
 /* from openair */
 #include "rlc.h"
 #include "LAYER2/nr_pdcp/nr_pdcp_oai_api.h"
+#include "LAYER2/nr_srap/nr_srap_oai_api.h"
 
 /* from nr rlc module */
 #include "nr_rlc_asn1_utils.h"
@@ -39,6 +40,7 @@
 #include "NR_UL-CCCH-Message.h"
 
 #include "openair2/F1AP/f1ap_du_rrc_message_transfer.h"
+#include "common/utils/nr/nr_common.h"
 
 extern RAN_CONTEXT_t RC;
 
@@ -54,21 +56,26 @@ static int      nr_rlc_current_time_last_frame;
 static int      nr_rlc_current_time_last_subframe;
 
 
-void mac_rlc_data_ind     (
-  const module_id_t         module_idP,
-  const rnti_t              rntiP,
-  const eNB_index_t         eNB_index,
-  const frame_t             frameP,
-  const eNB_flag_t          enb_flagP,
-  const MBMS_flag_t         MBMS_flagP,
-  const logical_chan_id_t   channel_idP,
-  char                     *buffer_pP,
-  const tb_size_t           tb_sizeP,
-  num_tb_t                  num_tbP,
-  crc_t                    *crcs_pP)
+void mac_rlc_data_ind (const module_id_t         module_idP,
+                       const rnti_t              rntiP,
+                       const eNB_index_t         eNB_index,
+                       const frame_t             frameP,
+                       const eNB_flag_t          enb_flagP,
+                       const MBMS_flag_t         MBMS_flagP,
+                       const logical_chan_id_t   channel_idP,
+                       char                     *buffer_pP,
+                       const tb_size_t           tb_sizeP,
+                       num_tb_t                  num_tbP,
+                       crc_t                    *crcs_pP,
+                       uint16_t                  sourceL2Id,
+                       uint8_t                   destinationL2Id)
 {
   nr_rlc_ue_t *ue;
   nr_rlc_entity_t *rb;
+  /* In Sidelink (Mode 1 and Mode 2), we have source and destination IDs defined.
+    In SA Mode, these are undefined and therefore both are zeros.
+  */
+  bool is_pc5_link = sourceL2Id != 0 || destinationL2Id != 0;
 
   if (module_idP != 0 || eNB_index != 0 || /*enb_flagP != 1 ||*/ MBMS_flagP != 0) {
     LOG_E(RLC, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
@@ -88,7 +95,12 @@ void mac_rlc_data_ind     (
   switch (channel_idP) {
   case 0:        rb = ue->srb0;                 break;
   case 1 ... 3:  rb = ue->srb[channel_idP - 1]; break;
-  case 4 ... 32: rb = ue->drb[channel_idP - 4]; break;
+  case 4 ... 32:
+    if (is_pc5_link)
+      rb = ue->sl_drb[channel_idP - 4];
+    else
+      rb = ue->drb[channel_idP - 4];
+    break;
   default:       rb = NULL;                     break;
   }
 
@@ -123,6 +135,10 @@ tbs_size_t mac_rlc_data_req(
   nr_rlc_ue_t *ue;
   nr_rlc_entity_t *rb;
   int maxsize;
+  /* In Sidelink (Mode 1 and Mode 2), we have source and destination IDs defined.
+    In SA Mode, these are undefined and therefore both are zeros.
+  */
+  bool is_pc5_link = sourceL2Id != 0 || destinationL2Id != 0;
 
   nr_rlc_manager_lock(nr_rlc_ue_manager);
   ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, rntiP);
@@ -130,7 +146,12 @@ tbs_size_t mac_rlc_data_req(
   switch (channel_idP) {
   case 0:        rb = ue->srb0;                 break;
   case 1 ... 3:  rb = ue->srb[channel_idP - 1]; break;
-  case 4 ... 32: rb = ue->drb[channel_idP - 4]; break;
+  case 4 ... 32:
+    if (is_pc5_link)
+      rb = ue->sl_drb[channel_idP - 4];
+    else
+      rb = ue->drb[channel_idP - 4];
+    break;
   default:
   rb = NULL;
   LOG_E(RLC, "In %s:%d:%s: data request for unknown RB with LCID 0x%02x !\n", __FILE__, __LINE__, __FUNCTION__, channel_idP);
@@ -172,6 +193,10 @@ mac_rlc_status_resp_t mac_rlc_status_ind(
   nr_rlc_ue_t *ue;
   mac_rlc_status_resp_t ret;
   nr_rlc_entity_t *rb;
+  /* In Sidelink (Mode 1 and Mode 2), we have source and destination IDs defined.
+    In SA Mode, these are undefined and therefore both are zeros.
+  */
+  bool is_pc5_link = sourceL2Id != 0 || destinationL2Id != 0;
 
   nr_rlc_manager_lock(nr_rlc_ue_manager);
   ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, rntiP);
@@ -179,7 +204,12 @@ mac_rlc_status_resp_t mac_rlc_status_ind(
   switch (channel_idP) {
   case 0:                          rb = ue->srb0;                 break;
   case 1 ... 3:                    rb = ue->srb[channel_idP - 1]; break;
-  case 4 ... MAX_DRBS_PER_UE:      rb = ue->drb[channel_idP - 4]; break;
+  case 4 ... MAX_DRBS_PER_UE:
+    if (is_pc5_link)
+      rb = ue->sl_drb[channel_idP - 4];
+    else
+      rb = ue->drb[channel_idP - 4];
+    break;
   default:                         rb = NULL;                     break;
   }
 
@@ -271,17 +301,17 @@ rlc_buffer_occupancy_t mac_rlc_get_buffer_occupancy_ind(
 }
 
 
-rlc_op_status_t rlc_data_req     (const protocol_ctxt_t *const ctxt_pP,
-			const srb_flag_t   srb_flagP,
-			const MBMS_flag_t  MBMS_flagP,
-			const rb_id_t      rb_idP,
-			const mui_t        muiP,
-			confirm_t    confirmP,
-			sdu_size_t   sdu_sizeP,
-			mem_block_t *sdu_pP,
-                        const uint32_t *const sourceL2Id,
-                        const uint32_t *const destinationL2Id
-			)
+rlc_op_status_t rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
+                             const srb_flag_t srb_flagP,
+                             const MBMS_flag_t MBMS_flagP,
+                             const rb_id_t rb_idP,
+                             const mui_t muiP,
+                             confirm_t confirmP,
+                             sdu_size_t sdu_sizeP,
+                             mem_block_t *sdu_pP,
+                             const uint32_t *const sourceL2Id,
+                             const uint32_t *const destinationL2Id,
+                             nr_intf_type_t intf_type)
 {
   int rnti = ctxt_pP->rntiMaybeUEid;
   nr_rlc_ue_t *ue;
@@ -303,8 +333,13 @@ rlc_op_status_t rlc_data_req     (const protocol_ctxt_t *const ctxt_pP,
     if (rb_idP >= 1 && rb_idP <= 2)
       rb = ue->srb[rb_idP - 1];
   } else {
-    if (rb_idP >= 1 && rb_idP <= MAX_DRBS_PER_UE)
-      rb = ue->drb[rb_idP - 1];
+    if (rb_idP >= 1 && rb_idP <= MAX_DRBS_PER_UE) {
+      if (intf_type == PC5) {
+        rb = ue->sl_drb[rb_idP - 1];
+      } else if (intf_type == UU) {
+        rb = ue->drb[rb_idP - 1];
+      }
+    }
   }
 
   if (rb != NULL) {
@@ -402,11 +437,21 @@ static void deliver_sdu(void *_ue, nr_rlc_entity_t *entity, char *buf, int size)
   }
 
   /* maybe DRB? */
-  for (i = 0; i < sizeofArray(ue->drb) ; i++) {
-    if (entity == ue->drb[i]) {
-      is_srb = 0;
-      rb_id = i+1;
-      goto rb_found;
+  if (entity->intf_type == UU) {
+    for (i = 0; i < sizeofArray(ue->drb); i++) {
+      if (entity == ue->drb[i]) {
+        is_srb = 0;
+        rb_id = i + 1;
+        goto rb_found;
+      }
+    }
+  } else if (entity->intf_type == PC5) {
+    for (i = 0; i < sizeofArray(ue->sl_drb); i++) {
+      if (entity == ue->sl_drb[i]) {
+        is_srb = 0;
+        rb_id = i + 1;
+        goto rb_found;
+      }
     }
   }
 
@@ -483,10 +528,17 @@ rb_found:
     exit(1);
   }
   memcpy(memblock->data, buf, size);
-  LOG_D(PDCP, "Calling PDCP layer from RLC in %s\n", __FUNCTION__);
-  if (!pdcp_data_ind(&ctx, is_srb, 0, rb_id, size, memblock, NULL, NULL)) {
-    LOG_E(RLC, "%s:%d:%s: ERROR: pdcp_data_ind failed\n", __FILE__, __LINE__, __FUNCTION__);
-    /* what to do in case of failure? for the moment: nothing */
+  bool srap_enabled = get_softmodem_params()->relay_type > 0 ? true : false;
+  srap_enabled = is_srb ? false : srap_enabled;
+  if (srap_enabled) {
+    if (!srap_data_ind(&ctx, is_srb, 0, rb_id, size, memblock, NULL, NULL, entity->intf_type)) {
+      LOG_E(RLC, "%s:%d:%s: ERROR: srap_data_ind failed\n", __FILE__, __LINE__, __FUNCTION__);
+    }
+  } else {
+    if (!pdcp_data_ind(&ctx, is_srb, 0, rb_id, size, memblock, NULL, NULL)) {
+      LOG_E(RLC, "%s:%d:%s: ERROR: pdcp_data_ind failed\n", __FILE__, __LINE__, __FUNCTION__);
+      /* what to do in case of failure? for the moment: nothing */
+    }
   }
 }
 
@@ -513,6 +565,15 @@ static void successful_delivery(void *_ue, nr_rlc_entity_t *entity, int sdu_id)
   /* maybe DRB? */
   for (i = 0; i < MAX_DRBS_PER_UE; i++) {
     if (entity == ue->drb[i]) {
+      is_srb = 0;
+      rb_id = i+1;
+      goto rb_found;
+    }
+  }
+
+  /* maybe DRB? */
+  for (i = 0; i < MAX_DRBS_PER_UE; i++) {
+    if (entity == ue->sl_drb[i]) {
       is_srb = 0;
       rb_id = i+1;
       goto rb_found;
@@ -571,6 +632,15 @@ static void max_retx_reached(void *_ue, nr_rlc_entity_t *entity)
   /* maybe DRB? */
   for (i = 0; i < MAX_DRBS_PER_UE; i++) {
     if (entity == ue->drb[i]) {
+      is_srb = 0;
+      rb_id = i+1;
+      goto rb_found;
+    }
+  }
+
+  /* maybe DRB? */
+  for (i = 0; i < MAX_DRBS_PER_UE; i++) {
+    if (entity == ue->sl_drb[i]) {
       is_srb = 0;
       rb_id = i+1;
       goto rb_found;
@@ -687,7 +757,8 @@ void nr_rlc_add_srb(int rnti, int srb_id, const NR_RLC_BearerConfig_t *rlc_Beare
                                      t_poll_retransmit,
                                      t_reassembly, t_status_prohibit,
                                      poll_pdu, poll_byte, max_retx_threshold,
-                                     sn_field_length);
+                                     sn_field_length,
+                                     UU);
     nr_rlc_ue_add_srb_rlc_entity(ue, srb_id, nr_rlc_am);
 
     LOG_I(RLC, "%s:%d:%s: added srb %d to UE with RNTI 0x%x\n", __FILE__, __LINE__, __FUNCTION__, srb_id, rnti);
@@ -768,7 +839,8 @@ static void add_drb_am(int rnti, int drb_id, const NR_RLC_BearerConfig_t *rlc_Be
                                      t_poll_retransmit,
                                      t_reassembly, t_status_prohibit,
                                      poll_pdu, poll_byte, max_retx_threshold,
-                                     sn_field_length);
+                                     sn_field_length,
+                                     UU);
     nr_rlc_ue_add_drb_rlc_entity(ue, drb_id, nr_rlc_am);
 
     LOG_I(RLC, "%s:%d:%s: added drb %d to UE with RNTI 0x%x\n", __FILE__, __LINE__, __FUNCTION__, drb_id,rnti);
@@ -830,7 +902,9 @@ static void add_drb_am_sl(int src_id, int drb_id, const NR_SL_RLC_BearerConfig_r
                                      t_poll_retransmit,
                                      t_reassembly, t_status_prohibit,
                                      poll_pdu, poll_byte, max_retx_threshold,
-                                     sn_field_length);
+                                     sn_field_length,
+                                     PC5);
+
     nr_rlc_ue_add_drb_rlc_entity(ue, drb_id, nr_rlc_am);
 
     LOG_I(RLC, "%s:%d:%s: added drb %d to UE with SRCID 0x%x\n", __FILE__, __LINE__, __FUNCTION__, drb_id, src_id);
@@ -896,7 +970,8 @@ static void add_drb_um(int rnti, int drb_id, const NR_RLC_BearerConfig_t *rlc_Be
                                      RLC_TX_MAXSIZE,
                                      deliver_sdu, ue,
                                      t_reassembly,
-                                     sn_field_length);
+                                     sn_field_length,
+                                     UU);
     nr_rlc_ue_add_drb_rlc_entity(ue, drb_id, nr_rlc_um);
 
     LOG_D(RLC, "%s:%d:%s: added drb %d to UE with RNTI 0x%x\n", __FILE__, __LINE__, __FUNCTION__, drb_id, rnti);
@@ -944,7 +1019,8 @@ static void add_drb_um_sl(int src_id, int drb_id, const NR_SL_RLC_BearerConfig_r
                                      RLC_TX_MAXSIZE,
                                      deliver_sdu, ue,
                                      t_reassembly,
-                                     sn_field_length);
+                                     sn_field_length,
+                                     PC5);
     nr_rlc_ue_add_drb_rlc_entity(ue, drb_id, nr_rlc_um);
 
     LOG_D(RLC, "%s:%d:%s: added drb %d to UE with SRCID 0x%x\n", __FILE__, __LINE__, __FUNCTION__, drb_id, src_id);

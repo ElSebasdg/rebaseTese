@@ -100,7 +100,6 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   LOG_I(NR_MAC, "[SL_HARQ] Got mac instance: %p\n", mac);
   
   NR_UE_SL_SCHED_LOCK(&mac->sl_sched_lock);
-
   // LOG_I(NR_MAC, "[SL_HARQ] Acquired scheduler lock\n");
   
   NR_SL_UE_info_t **UE_SL_temp = (NR_SL_UE_info_t **)&mac->sl_info.list, *UE = NULL;
@@ -127,6 +126,7 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   LOG_I(NR_MAC, "[SL_HARQ] Processing UE %p, accessing num_acks_rcvd...\n", UE);
   uint8_t num_ack_rcvd = rx_slsch_pdu->num_acks_rcvd;
   // LOG_I(NR_MAC, "[SL_HARQ] num_ack_rcvd=%d\n", num_ack_rcvd);
+
   // LOG_I(NR_MAC, "[SL_HARQ] Accessing UE->UE_sched_ctrl...\n");
   NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   // LOG_I(NR_MAC, "[SL_HARQ] sched_ctrl=%p\n", sched_ctrl);
@@ -323,6 +323,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
 
   const int max_mcs_table = mcs_tb_ind == 1 ? 27 : 28;
   int max_mcs = min(sched_ctrl->sl_max_mcs, max_mcs_table);
+ 
   if (sl_bo->harq_round_max == 1) {
       sched_pssch->mcs = max_mcs;
     } else {
@@ -381,8 +382,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   uint8_t n_start_subch2 = 0; // Keep as 0 for single resource allocation
   
   LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
-        mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
-                                                  // as we are considering only 1 subchannel, so we have initialized these variables with zeros.
+        mac->src_id, n_start_subch1, total_available_subch);
   // Fill SCI1A
   sci_pdu->priority = 0;
   sci_pdu->frequency_resource_assignment.val = compute_FRIV(sl_max_num_reserve, l_subch, n_start_subch1, n_start_subch2, sl_num_subch);
@@ -406,7 +406,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
 
   uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
   bool is_feedback_slot = false;
-
+  
   // FIXED: Check feedback slot for the specific UE instead of always using index [0]
   // Also verify that UE and sched_psfch are properly initialized
   if (!UE) {
