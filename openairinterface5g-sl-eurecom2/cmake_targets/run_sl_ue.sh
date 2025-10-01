@@ -21,14 +21,13 @@ fi
 #  RFSIM MODE
 
 if [[ "$MODE" == "--rfsim" && "$ROLE" == "--syncref" ]]; then
-  CMD="sudo LD_LIBRARY_PATH=\$PWD:\$LD_LIBRARY_PATH -E ./nr-uesoftmodem -O $CONF_DIR/sl_sync_ref.conf --sa --sl-mode 2 --sync-ref --rfsim --thread-pool -1,-1,-1,-1 --rfsimulator.serveraddrsl server --rfsimulator.serverportsl 4048 $TELNET_OPTION"
+  CMD="sudo ./nr-uesoftmodem --rfsim -O $CONF_DIR/sl_sync_ref.conf --sl-mode 2 --sa --sync-ref --rfsimulator.serveraddr server --rfsimulator.serverport 4048"
 
 elif [[ "$MODE" == "--rfsim" && "$ROLE" == "--ue1" ]]; then
-  CMD="sudo LD_LIBRARY_PATH=\$PWD:\$LD_LIBRARY_PATH -E ./nr-uesoftmodem -O $CONF_DIR/sl_ue1.conf --sa --sl-mode 2 --rfsim --thread-pool -1,-1,-1,-1 --rfsimulator.serveraddrsl 11.0.20.1 --rfsimulator.serverportsl 4048 $TELNET_OPTION"
+  CMD="sudo ./nr-uesoftmodem --rfsim -O $CONF_DIR/sl_ue1.conf --sl-mode 2 --sa --rfsimulator.serveraddr 11.0.20.1 --rfsimulator.serverport 4048"
 
 elif [[ "$MODE" == "--rfsim" && "$ROLE" == "--ue2" ]]; then
-  CMD="sudo LD_LIBRARY_PATH=\$PWD:\$LD_LIBRARY_PATH -E ./nr-uesoftmodem -O $CONF_DIR/sl_ue2.conf --sa --sl-mode 2 --rfsim --thread-pool -1,-1,-1,-1 --rfsimulator.serveraddrsl 11.0.20.1 --rfsimulator.serverportsl 4048 $TELNET_OPTION"
-
+  CMD="sudo ./nr-uesoftmodem --rfsim -O $CONF_DIR/sl_ue2.conf --sl-mode 2 --sa --rfsimulator.serveraddr 11.0.20.1 --rfsimulator.serverport 4048"
 
 #  USRP MODE
 
@@ -49,4 +48,5 @@ fi
 
 echo "Executing: $CMD"
 eval $CMD
+
 
