@@ -190,10 +190,6 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
   
   LOG_I(NR_MAC, "[SL_INIT] === INITIALIZING SL UE LIST === src_id=%d, max_connections=%d\n", mac->src_id, CUR_SL_UE_CONNECTIONS);
   
-  // Get remote_ue_id from ueinfo if available
-  uint8_t remote_ue_id = (ueinfo != NULL) ? ueinfo->remote_ue_id : 0;
-  LOG_I(NR_MAC, "[SL_INIT] remote_ue_id from config: %d\n", remote_ue_id);
-  
   int k = 0;
   // Initialize structures for all possible UEs (0 to 3), but skip own srcid
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS + 1; i++) {
