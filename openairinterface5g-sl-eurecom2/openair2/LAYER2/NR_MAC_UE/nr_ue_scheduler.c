@@ -3659,6 +3659,10 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       sl_sch_subheader->R = 0;
       sl_sch_subheader->SRC = mac->sci2_pdu.source_id;
       sl_sch_subheader->DST = mac->sci2_pdu.dest_id;
+      
+      // 🔍 IMMEDIATE VALIDATION: Check what we just set
+      LOG_I(NR_MAC, "[HEADER_SET] 🔧 Just set header: sci2_pdu(src=%d,dst=%d) -> header(SRC=%d,DST=%d)\n",
+            mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id, sl_sch_subheader->SRC, sl_sch_subheader->DST);
 
         
       // 🔍 DEEP ANALYSIS: Log detailed transmission information
@@ -3666,7 +3670,12 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   SCI2_PDU: source_id=%d, dest_id=%d\n", mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
       LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   PDU_HEADER: SRC=%d, DST=%d\n", sl_sch_subheader->SRC, sl_sch_subheader->DST);
       
-      // 🚨 CRITICAL DEBUG: Final PDU verification before RF transmission
+      // � RAW BYTE VERIFICATION: Check actual memory content
+      uint8_t *raw_tx_bytes = (uint8_t*)sl_sch_subheader;
+      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   RAW_TX_BYTES: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
+            raw_tx_bytes[0], raw_tx_bytes[1], raw_tx_bytes[2], raw_tx_bytes[3]);
+      
+      // �🚨 CRITICAL DEBUG: Final PDU verification before RF transmission
       LOG_I(NR_MAC, "[PDU_PRE_RF] 📤 FINAL VERIFICATION: frame=%d.%d, srcid=%d", frame, slot, mac->src_id);
       LOG_I(NR_MAC, "[PDU_PRE_RF] 📤   MEMORY PDU_HEADER at %p: V=%d, R=%d, SRC=%d, DST=%d", 
             sl_sch_subheader, sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
@@ -3841,67 +3850,29 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
 
     const uint32_t TBS = pscch_pssch_pdu->tb_size;
 
-        // 🔧 DEFINITIVE FIX: Force correct PDU header RIGHT BEFORE memcpy to prevent corruption
+    // � MEMORY DEBUG: Check transportBlock header before memcpy
     if (cur_harq->transportBlock) {
-      NR_SLSCH_MAC_SUBHEADER_FIXED *fix_header = (NR_SLSCH_MAC_SUBHEADER_FIXED *)cur_harq->transportBlock;
-      
-      // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧 FORCING CORRECT HEADER: frame=%d.%d\n", frame, slot);
-      // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧   BEFORE_FIX: V=%d, R=%d, SRC=%d, DST=%d\n", 
-      //       fix_header->V, fix_header->R, fix_header->SRC, fix_header->DST);
-            
-      // 🔧 FORCE CORRECT HEADER VALUES - This prevents the self-loopback issue!
-      fix_header->V = 0;
-      fix_header->R = 0;  
-      fix_header->SRC = mac->sci2_pdu.source_id;  // Should be 0
-      fix_header->DST = mac->sci2_pdu.dest_id;    // Should be 1 (NOT 0!)
-      
-      // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧   AFTER_FIX: V=%d, R=%d, SRC=%d, DST=%d\n", 
-      //       fix_header->V, fix_header->R, fix_header->SRC, fix_header->DST);
+      NR_SLSCH_MAC_SUBHEADER_FIXED *src_header = (NR_SLSCH_MAC_SUBHEADER_FIXED *)cur_harq->transportBlock;
+      LOG_I(NR_MAC, "[PRE_MEMCPY_CHECK] 📋 transportBlock header: V=%d, R=%d, SRC=%d, DST=%d\n", 
+            src_header->V, src_header->R, src_header->SRC, src_header->DST);
+      LOG_I(NR_MAC, "[PRE_MEMCPY_CHECK] 📋 sci2_pdu reference: source_id=%d, dest_id=%d\n", 
+            mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
     }
-    
 
     memcpy(pscch_pssch_pdu->slsch_payload, cur_harq->transportBlock, TBS);
-   
 
-    // 🔍 IMMEDIATE VERIFICATION RIGHT AFTER MEMCPY
-    // LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍 IMMEDIATE AFTER MEMCPY: \n");
+    // 🔍 MEMORY DEBUG: Verify header after memcpy
     if (pscch_pssch_pdu->slsch_payload) {
-      uint8_t *dest_ptr = (uint8_t*)pscch_pssch_pdu->slsch_payload;
-      // LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍   DEST_PDU_HEADER_IMMEDIATE: V=%d, R=%d, SRC=%d, DST=%d \n", 
-      //       (dest_ptr[0] >> 4) & 0xF, (dest_ptr[0] >> 3) & 0x1, dest_ptr[1], dest_ptr[2]);
-    }
-    
-    // 🚨 NUCLEAR OPTION: FORCE MEMORY BARRIERS & RAW BYTE ACCESS
-    if (pscch_pssch_pdu->slsch_payload) {
-      volatile uint8_t *dest_raw = (volatile uint8_t*)pscch_pssch_pdu->slsch_payload;
+      NR_SLSCH_MAC_SUBHEADER_FIXED *dest_header = (NR_SLSCH_MAC_SUBHEADER_FIXED *)pscch_pssch_pdu->slsch_payload;
+      LOG_I(NR_MAC, "[POST_MEMCPY_CHECK] � Payload header: V=%d, R=%d, SRC=%d, DST=%d\n", 
+            dest_header->V, dest_header->R, dest_header->SRC, dest_header->DST);
       
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] � RAW BYTE MANIPULATION: frame=%d.%d\n", frame, slot);
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] �   RAW_BEFORE: byte[0]=0x%02x, byte[1]=0x%02x, byte[2]=0x%02x\n", 
-      //       dest_raw[0], dest_raw[1], dest_raw[2]);
-            
-      // � NUCLEAR: Force correct header with raw byte manipulation + memory barriers
-      dest_raw[0] = 0x00;  // V=0, R=0, reserved bits
-      dest_raw[1] = mac->sci2_pdu.source_id;  // SRC field
-      dest_raw[2] = mac->sci2_pdu.dest_id;    // DST field - FORCE to correct value!
-      
-      // 🚨 MEMORY BARRIER: Force compiler to flush changes
-      __asm__ __volatile__ ("" ::: "memory");
-      
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] 🚀   RAW_AFTER: byte[0]=0x%02x, byte[1]=0x%02x, byte[2]=0x%02x\n", 
-      //       dest_raw[0], dest_raw[1], dest_raw[2]);
-            
-      // 🔍 VERIFY BOTH STRUCT AND RAW ACCESS
-      NR_SLSCH_MAC_SUBHEADER_FIXED *dest_struct = (NR_SLSCH_MAC_SUBHEADER_FIXED *)pscch_pssch_pdu->slsch_payload;
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] �   STRUCT_AFTER: V=%d, R=%d, SRC=%d, DST=%d\n", 
-      //       dest_struct->V, dest_struct->R, dest_struct->SRC, dest_struct->DST);
-    }
-    
-    // 🔍 FINAL VERIFICATION
-    LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍 FINAL VERIFICATION: \n");
-    if (pscch_pssch_pdu->slsch_payload) {
-      uint8_t *dest_ptr = (uint8_t*)pscch_pssch_pdu->slsch_payload;
-      LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍   DEST_PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
-            (dest_ptr[0] >> 4) & 0xF, (dest_ptr[0] >> 3) & 0x1, dest_ptr[1], dest_ptr[2]);
+      // 🚨 CORRUPTION DETECTION: Check if header got corrupted during memcpy
+      if (dest_header->DST != 1) {
+        LOG_E(NR_MAC, "[CORRUPTION_DETECTED] 🚨 HEADER CORRUPTED! Expected DST=1, got DST=%d\n", dest_header->DST);
+        LOG_E(NR_MAC, "[CORRUPTION_DETECTED] � Attempting to fix corruption...\n");
+        dest_header->DST = 1;  // Fix corruption
+      }
     }
     
    

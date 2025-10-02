@@ -1416,6 +1416,13 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
         sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST, 
         mac ? mac->src_id : -1);
   
+  // 🔍 RAW BYTE ANALYSIS: Check actual memory layout
+  uint8_t *raw_bytes = (uint8_t*)pduP;
+  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍   RAW_BYTES: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
+        raw_bytes[0], raw_bytes[1], raw_bytes[2], raw_bytes[3]);
+  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍   DECODED: V=%d, R=%d, SRC_HI=%d, SRC_LO=%d, DST=%d\n",
+        (raw_bytes[0] >> 4) & 0xF, raw_bytes[0] & 0xF, raw_bytes[1], raw_bytes[2], raw_bytes[3]);
+  
   // CRITICAL DEBUG: Log every PDU processing attempt with source UE info
   LOG_W(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
         module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);

@@ -512,6 +512,15 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯   UE->uid=%d (destination), dest_id=%d\n", UE->uid, dest_id);
   LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯   Setting sci2_pdu: source_id=%d, dest_id=%d\n", sci2_pdu->source_id, sci2_pdu->dest_id);
   
+  // 🔧 VALIDATION: Make sure dest_id is correct (should be 1 for UE1, 2 for UE2, etc.)
+  if (sci2_pdu->dest_id == sci2_pdu->source_id) {
+    LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨 ERROR: dest_id (%d) equals source_id (%d)!\n", 
+          sci2_pdu->dest_id, sci2_pdu->source_id);
+  } else {
+    LOG_I(NR_MAC, "[DEST_ANALYSIS] ✅ CORRECT: dest_id (%d) != source_id (%d)\n", 
+          sci2_pdu->dest_id, sci2_pdu->source_id);
+  }
+  
   if (sci2_pdu->source_id == sci2_pdu->dest_id) {
     LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨 CRITICAL ERROR: SCI2_PDU configured for SELF-TRANSMISSION!\n");
     LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨   source_id=%d == dest_id=%d (UE->uid=%d)\n", 
