@@ -273,10 +273,13 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   LOG_I(NR_MAC, "[SCHED_ANALYSIS] 🚀   local_srcid=%d, UE->uid=%d, dest_id=%d\n", 
         mac->src_id, UE->uid, dest_id);
   
+  // 🔧 CRITICAL FIX: Abort if trying to schedule transmission to self
   if (mac->src_id == dest_id) {
-    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨 FUNCTION CALLED WITH SELF-DESTINATION!\n");
-    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨   This function should NOT be called when src_id==dest_id!\n");
-    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨   Check caller function for missing self-check!\n");
+    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨 CRITICAL ERROR: SELF-DESTINATION DETECTED!\n");
+    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨   src_id=%d attempting to transmit to dest_id=%d (same ID!)\n", 
+          mac->src_id, dest_id);
+    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨   ABORTING to prevent self-loopback - this should never happen!\n");
+    return; // 🔧 Abort the function to prevent self-transmission
   }
   
 

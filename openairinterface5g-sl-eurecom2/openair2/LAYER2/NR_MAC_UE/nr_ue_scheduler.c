@@ -3508,12 +3508,20 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    
+    // 🔧 CRITICAL FIX: Skip processing if this UE has same uid as our src_id (prevents self-transmission)
+    if (UE->uid == mac->src_id) {
+      LOG_W(NR_MAC, "[SELF_TRANSMISSION_PREVENTION] 🚫 Skipping UE uid=%d (same as src_id=%d) to prevent self-loopback\n", 
+            UE->uid, mac->src_id);
+      continue;
+    }
+    
     // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
     if (!UE->UE_sched_ctrl.sched_psfch) {
       continue;
     }
 
-    LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d)\n", 
+    LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d) ✅ SAFE\n", 
           i, UE->uid, mac->src_id);
 
     NR_mac_dir_stats_t *sl_mac_stats = &UE->mac_sl_stats.sl;

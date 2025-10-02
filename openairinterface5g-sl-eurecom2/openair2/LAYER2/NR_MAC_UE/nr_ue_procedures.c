@@ -192,12 +192,20 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
   
   int k = 0;
   // Initialize structures for all possible UEs (0 to 3), but skip own srcid
+  // 🔧 FIX: Correct UE initialization to prevent self-transmission
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS + 1; i++) {
     LOG_I(NR_MAC, "[SL_INIT] Checking uid=%d vs src_id=%d\n", i, mac->src_id);
     
+    // 🔧 CRITICAL FIX: Skip the UE's own src_id to prevent self-transmission
     if (mac->src_id == i) {
-      LOG_I(NR_MAC, "[SL_INIT] Skipping own src_id=%d\n", i);
+      LOG_I(NR_MAC, "[SL_INIT] ✅ CORRECTLY skipping own src_id=%d (prevents self-loopback)\n", i);
       continue;
+    }
+    
+    // 🔧 SAFETY CHECK: Don't exceed array bounds
+    if (k >= CUR_SL_UE_CONNECTIONS) {
+      LOG_W(NR_MAC, "[SL_INIT] ⚠️  Reached maximum UE slots (%d), stopping allocation\n", CUR_SL_UE_CONNECTIONS);
+      break;
     }
     
     LOG_I(NR_MAC, "[SL_INIT] Allocating UE slot[%d] for uid=%d...\n", k, i);
@@ -210,7 +218,16 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
     }
     
     mac->sl_info.list[k]->uid = i;
-    LOG_I(NR_MAC, "[SL_INIT] SUCCESS: Allocated UE[%d] with uid=%d at address %p\n", k, i, mac->sl_info.list[k]);
+    LOG_I(NR_MAC, "[SL_INIT] ✅ SUCCESS: Allocated UE[%d] with uid=%d at address %p\n", k, i, mac->sl_info.list[k]);
+    
+    // 🔧 VALIDATION: Ensure we never create a UE with same uid as src_id
+    if (mac->sl_info.list[k]->uid == mac->src_id) {
+      LOG_E(NR_MAC, "[SL_INIT] 🚨 FATAL ERROR: Created UE with uid=%d same as src_id=%d! This causes self-loopback!\n", 
+            mac->sl_info.list[k]->uid, mac->src_id);
+      free(mac->sl_info.list[k]);
+      mac->sl_info.list[k] = NULL;
+      continue;
+    }
     
     NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[k]->UE_sched_ctrl;
     UE_sched_ctrl->rx_csi_report.RI = 0;
@@ -223,12 +240,6 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
     create_nr_list(&UE_sched_ctrl->retrans_sl_harq, 16);
     
     LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d LISTS INITIALIZED ===\n", k, i);
-    // LOG_I(NR_MAC, "[SL_INIT]   available_sl_harq: head=%d, len=%d\n", 
-    //       UE_sched_ctrl->available_sl_harq.head, UE_sched_ctrl->available_sl_harq.len);
-    // LOG_I(NR_MAC, "[SL_INIT]   feedback_sl_harq: head=%d, len=%d\n", 
-    //       UE_sched_ctrl->feedback_sl_harq.head, UE_sched_ctrl->feedback_sl_harq.len);
-    // LOG_I(NR_MAC, "[SL_INIT]   retrans_sl_harq: head=%d, len=%d\n", 
-    //       UE_sched_ctrl->retrans_sl_harq.head, UE_sched_ctrl->retrans_sl_harq.len);
     
     k++;
   }
