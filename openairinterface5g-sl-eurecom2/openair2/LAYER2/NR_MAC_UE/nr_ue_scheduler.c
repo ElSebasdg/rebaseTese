@@ -3868,10 +3868,11 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
             dest_header->V, dest_header->R, dest_header->SRC, dest_header->DST);
       
       // 🚨 CORRUPTION DETECTION: Check if header got corrupted during memcpy
-      if (dest_header->DST != 1) {
-        LOG_E(NR_MAC, "[CORRUPTION_DETECTED] 🚨 HEADER CORRUPTED! Expected DST=1, got DST=%d\n", dest_header->DST);
+      if (dest_header->DST != UE->uid) {
+        LOG_E(NR_MAC, "[CORRUPTION_DETECTED] 🚨 HEADER CORRUPTED! Expected DST=%d (UE->uid), got DST=%d\n", 
+              UE->uid, dest_header->DST);
         LOG_E(NR_MAC, "[CORRUPTION_DETECTED] � Attempting to fix corruption...\n");
-        dest_header->DST = 1;  // Fix corruption
+        dest_header->DST = UE->uid;  // Fix corruption to correct target UE
       }
     }
     

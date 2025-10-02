@@ -1440,20 +1440,30 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
   LOG_I(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
         module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);
   
-    // SELF-LOOPBACK PREVENTION: Skip processing if UE receives its own transmission
-  if (mac && mac->src_id == sl_sch_subheader->SRC) {
-    LOG_I(NR_MAC, "[SL_PDU_DEBUG] ⚠️  SELF-LOOPBACK DETECTED: UE srcid=%d ignoring its own transmission\n", mac->src_id);
+    // 🔧 ENHANCED SELF-LOOPBACK PREVENTION: Skip processing if UE receives its own transmission
+  // This handles both normal self-loopback and corrupted headers where DST=0 due to PHY issues
+  bool is_self_loopback = (mac && mac->src_id == sl_sch_subheader->SRC);
+  bool is_corrupted_self_tx = (mac && mac->src_id == sl_sch_subheader->SRC && sl_sch_subheader->DST == 0);
+  
+  if (is_self_loopback) {
+    if (is_corrupted_self_tx) {
+      LOG_W(NR_MAC, "[SL_PDU_DEBUG] 🔧 CORRUPTED SELF-LOOPBACK: UE srcid=%d received corrupted own transmission (DST=%d->0)\n", 
+            mac->src_id, sl_sch_subheader->DST);
+      LOG_W(NR_MAC, "[SL_PDU_DEBUG] 🔧   This indicates PHY/RF layer corruption of DST field\n");
+    } else {
+      LOG_I(NR_MAC, "[SL_PDU_DEBUG] ⚠️  SELF-LOOPBACK DETECTED: UE srcid=%d ignoring its own transmission\n", mac->src_id);
+    }
     return;
   }
 
 
 
-  // Enhanced logging for multi-UE communication tracking
+  // 🔧 ENHANCED COMMUNICATION TRACKING: Better handling of multi-UE scenarios
   static int pdu_counter = 0;
   bool track_communication = ((pdu_counter++ % 10) == 0);
   
   if (track_communication) {
-    LOG_I(NR_MAC, "[SL_MULTI_UE_COM] RX PDU #%d: SRC=%d->DST=%d, local_src=%d, frame=%d.%d, len=%d\n",
+    LOG_I(NR_MAC, "[SL_MULTI_UE_COM] ✅ RX PDU #%d: SRC=%d->DST=%d, local_src=%d, frame=%d.%d, len=%d\n",
           pdu_counter, sl_sch_subheader->SRC, sl_sch_subheader->DST, mac->src_id, frame, slot, pdu_len);
     
     // Track unique communication pairs
@@ -1471,14 +1481,14 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     if (new_src) {
       last_src_ids[pair_idx % 5] = sl_sch_subheader->SRC;
       pair_idx++;
-      LOG_I(NR_MAC, "[SL_MULTI_UE_COM] New communication source detected: SRC=%d (total unique: %d)\n", 
+      LOG_I(NR_MAC, "[SL_MULTI_UE_COM] 🆕 New communication source detected: SRC=%d (total unique: %d)\n", 
             sl_sch_subheader->SRC, min(pair_idx, 5));
     }
   }
   
-  // Log when we receive data from a remote UE
-  LOG_D(NR_MAC, "[SL_RX_DATA] Received SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d, pdu_type=%d\n",
-        sl_sch_subheader->SRC, frame, slot, pdu_len, pdu_type);
+  // Log successful reception from remote UE (not self-loopback)
+  LOG_I(NR_MAC, "[SL_RX_DATA] ✅ Processing VALID SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d\n",
+        sl_sch_subheader->SRC, frame, slot, pdu_len);
   
 
   uint8_t psfch_period = 0;
