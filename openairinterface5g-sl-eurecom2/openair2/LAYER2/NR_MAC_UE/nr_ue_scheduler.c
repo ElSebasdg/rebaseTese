@@ -3839,7 +3839,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       
       // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧 FORCING CORRECT HEADER: frame=%d.%d\n", frame, slot);
       // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧   BEFORE_FIX: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            fix_header->V, fix_header->R, fix_header->SRC, fix_header->DST);
+      //       fix_header->V, fix_header->R, fix_header->SRC, fix_header->DST);
             
       // 🔧 FORCE CORRECT HEADER VALUES - This prevents the self-loopback issue!
       fix_header->V = 0;
