@@ -267,22 +267,6 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
                        mac_rlc_status_resp_t *rlc_status,
                        sl_resource_info_t *resource) {
   uid_t dest_id = UE->uid;
-
-    // 🔍 DEEP ANALYSIS: Track function entry and destination assignment
-  LOG_I(NR_MAC, "[SCHED_ANALYSIS] 🚀 nr_schedule_slsch ENTRY: frame=%d.%d\n", frameP, slotP);
-  LOG_I(NR_MAC, "[SCHED_ANALYSIS] 🚀   local_srcid=%d, UE->uid=%d, dest_id=%d\n", 
-        mac->src_id, UE->uid, dest_id);
-  
-  // 🔧 CRITICAL FIX: Abort if trying to schedule transmission to self
-  if (mac->src_id == dest_id) {
-    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨 CRITICAL ERROR: SELF-DESTINATION DETECTED!\n");
-    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨   src_id=%d attempting to transmit to dest_id=%d (same ID!)\n", 
-          mac->src_id, dest_id);
-    LOG_E(NR_MAC, "[SCHED_ANALYSIS] 🚨   ABORTING to prevent self-loopback - this should never happen!\n");
-    return; // 🔧 Abort the function to prevent self-transmission
-  }
-  
-
   NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   const NR_mac_dir_stats_t *stats = &UE->mac_sl_stats.sl;
   NR_sched_pssch_t *sched_pssch = &sched_ctrl->sched_pssch;
@@ -391,47 +375,17 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   long sl_num_subch = *mac->sl_tx_res_pool->sl_NumSubchannel_r16;
   uint8_t l_subch = resource ? resource->sl_subchan_len : 1; // number of used sub channels; as in current setting, we have only 1 subchannel so l_subch is set to 1
   
-
-
-
-
-    // DEDICATED SUBCHANNEL MAPPING: Force specific subchannel per UE
-  // UE0 (syncref) -> Subchannel 0 (PRBs 0-24)
-  // UE1          -> Subchannel 1 (PRBs 25-49)  
-  // UE2          -> Subchannel 2 (PRBs 50-74)
+  // SUBCHANNEL DIVERSIFICATION: Use different subchannels based on UE srcid to prevent resource conflicts
   uint8_t total_available_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-  uint8_t n_start_subch1;
+  uint8_t n_start_subch1 = (mac->src_id % total_available_subch); // Distribute UEs across available subchannels
   uint8_t n_start_subch2 = 0; // Keep as 0 for single resource allocation
   
-    // Force dedicated subchannel mapping based on srcid
-  switch(mac->src_id) {
-    case 0: // syncref UE0
-      n_start_subch1 = 0;  // Subchannel 0 (PRBs 0-24)
-      break;
-    case 1: // UE1
-      n_start_subch1 = 1;  // Subchannel 1 (PRBs 25-49)
-      break;
-    case 2: // UE2  
-      n_start_subch1 = 2;  // Subchannel 2 (PRBs 50-74)
-      break;
-    default:
-      // For other UEs, distribute across remaining subchannels
-      n_start_subch1 = (mac->src_id % total_available_subch);
-      LOG_W(NR_MAC, "[SL_DEDICATED_SUBCHANNEL] WARNING: UE srcid=%d using fallback subchannel=%d\n", mac->src_id, n_start_subch1);
-      break;
-  }
-  
-  LOG_I(NR_MAC, "[SL_DEDICATED_SUBCHANNEL] UE srcid=%d FORCED to subchannel=%d (total_subch=%d)\n", 
-        mac->src_id, n_start_subch1, total_available_subch);
-  
+  LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
+        mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
+                                                  // as we are considering only 1 subchannel, so we have initialized these variables with zeros.
   // Fill SCI1A
   sci_pdu->priority = 0;
   sci_pdu->frequency_resource_assignment.val = compute_FRIV(sl_max_num_reserve, l_subch, n_start_subch1, n_start_subch2, sl_num_subch);
-  LOG_I(NR_MAC, "[FRIV_TX] 📤 TRANSMITTING FRIV: srcid=%d, frame=%d.%d, FRIV=0x%x, subchannel=%d, l_subch=%d\n", 
-        mac->src_id, frameP, slotP, sci_pdu->frequency_resource_assignment.val, n_start_subch1, l_subch);
-  
-  LOG_I(NR_MAC, "[SUBCHANNEL_MAP] 🗺️ UE srcid=%d → subchannel=%d, PRBs=[%d-%d], frame=%d.%d\n", 
-        mac->src_id, n_start_subch1, (n_start_subch1*25), ((n_start_subch1+1)*25-1), frameP, slotP);
   sci_pdu->time_resource_assignment.val = compute_TRIV(N, t1, t2);
   sci_pdu->resource_reservation_period.val = mac->SL_MAC_PARAMS->mac_tx_params.rri;
   sci_pdu->dmrs_pattern.val = 0;
@@ -507,27 +461,6 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   sci2_pdu->rv_index = nr_rv_round_map[cur_harq->round % 4];
   sci2_pdu->source_id = mac->src_id;
   sci2_pdu->dest_id = dest_id;
-    // 🔍 DEEP ANALYSIS: Track destination ID assignment
-  LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯 nr_schedule_slsch: frame=%d.%d, local_srcid=%d\n", frameP, slotP, mac->src_id);
-  LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯   UE->uid=%d (destination), dest_id=%d\n", UE->uid, dest_id);
-  LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯   Setting sci2_pdu: source_id=%d, dest_id=%d\n", sci2_pdu->source_id, sci2_pdu->dest_id);
-  
-  // 🔧 VALIDATION: Make sure dest_id is correct (should be 1 for UE1, 2 for UE2, etc.)
-  if (sci2_pdu->dest_id == sci2_pdu->source_id) {
-    LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨 ERROR: dest_id (%d) equals source_id (%d)!\n", 
-          sci2_pdu->dest_id, sci2_pdu->source_id);
-  } else {
-    LOG_I(NR_MAC, "[DEST_ANALYSIS] ✅ CORRECT: dest_id (%d) != source_id (%d)\n", 
-          sci2_pdu->dest_id, sci2_pdu->source_id);
-  }
-  
-  if (sci2_pdu->source_id == sci2_pdu->dest_id) {
-    LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨 CRITICAL ERROR: SCI2_PDU configured for SELF-TRANSMISSION!\n");
-    LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨   source_id=%d == dest_id=%d (UE->uid=%d)\n", 
-          sci2_pdu->source_id, sci2_pdu->dest_id, UE->uid);
-    LOG_E(NR_MAC, "[DEST_ANALYSIS] 🚨   This explains why PDU shows srcid=0 transmitting to itself!\n");
-  }
-  
   sci2_pdu->harq_feedback = cur_harq->is_waiting;
   LOG_D(NR_MAC, "%4d.%2d Comparing Setting harq_feedback %d bytes_in_buffer %d sl_harq_pid %d\n", frameP, slotP, sci2_pdu->harq_feedback, rlc_status->bytes_in_buffer, cur_harq ? cur_harq->sl_harq_pid : 0);
   sci2_pdu->cast_type = 1;

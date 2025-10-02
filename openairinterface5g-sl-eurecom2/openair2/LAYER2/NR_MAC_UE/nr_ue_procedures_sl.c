@@ -1410,71 +1410,16 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
 
   NR_SLSCH_MAC_SUBHEADER_FIXED *sl_sch_subheader = (NR_SLSCH_MAC_SUBHEADER_FIXED *) pduP;
   
-  // 🔍 DEEP DEBUG: Log the entire PDU header content
-  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍 RAW PDU HEADER: frame=%d.%d, pdu_len=%d\n", frame, slot, pdu_len);
-  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍   V=%d, R=%d, SRC=%d, DST=%d (local_srcid=%d)\n", 
-        sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST, 
-        mac ? mac->src_id : -1);
-  
-  // 🔍 RAW BYTE ANALYSIS: Check actual memory layout
-  uint8_t *raw_bytes = (uint8_t*)pduP;
-  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍   RAW_BYTES: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
-        raw_bytes[0], raw_bytes[1], raw_bytes[2], raw_bytes[3]);
-  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍   DECODED: V=%d, R=%d, SRC_HI=%d, SRC_LO=%d, DST=%d\n",
-        (raw_bytes[0] >> 4) & 0xF, raw_bytes[0] & 0xF, raw_bytes[1], raw_bytes[2], raw_bytes[3]);
-  
   // CRITICAL DEBUG: Log every PDU processing attempt with source UE info
-  LOG_W(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
-        module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);
-  
-  // 🔍 DEEP DEBUGGING: Add detailed self-loopback analysis
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍 RX Analysis: frame=%d.%d\n", frame, slot);
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍   PDU_SRC_ID=%d, LOCAL_SRC_ID=%d\n", 
-        sl_sch_subheader->SRC, mac ? mac->src_id : -1);
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍   PDU_DST_ID=%d, MODULE_ID=%d\n", 
-        sl_sch_subheader->DST, module_idP);
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍   IS_SELF_LOOPBACK=%s\n", 
-        (mac && mac->src_id == sl_sch_subheader->SRC) ? "YES" : "NO");
-  
-  // CRITICAL DEBUG: Log every PDU processing attempt with source UE info
-  // 🚫 ULTIMATE SELF-LOOPBACK PROTECTION: Multiple detection mechanisms
-  bool is_self_src = (mac && mac->src_id == sl_sch_subheader->SRC);
-  bool is_corrupted_dst_zero = (sl_sch_subheader->DST == 0 && is_self_src);
-  
-  // � STATISTICAL TRACKING: Track corruption events
-  static uint32_t corruption_count = 0;
-  static uint32_t total_rx_count = 0;
-  total_rx_count++;
-
   LOG_I(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
         module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);
   
-  if (is_self_src) {
-    if (is_corrupted_dst_zero) {
-      corruption_count++;
-      LOG_E(NR_MAC, "[CORRUPTION_TRACKER] 🔧 DST CORRUPTION DETECTED: UE srcid=%d received corrupted own transmission #%d (%.2f%% corruption rate)\n", 
-            mac->src_id, corruption_count, (100.0 * corruption_count / total_rx_count));
-      LOG_E(NR_MAC, "[CORRUPTION_TRACKER] 🔧   CAUSE: PHY/RF simulator corrupted DST field from 1→0\n");
-    } else {
-      LOG_I(NR_MAC, "[SL_PDU_DEBUG] ⚠️  NORMAL SELF-LOOPBACK: UE srcid=%d ignoring its own transmission (DST=%d)\n", mac->src_id, sl_sch_subheader->DST);
-    }
-    
-    // 🛡️ ALWAYS skip self-transmissions regardless of corruption
-    return;
-  }
-  
-  // 🎯 VALID REMOTE TRANSMISSION: Process only if not from self
-  LOG_I(NR_MAC, "[REMOTE_RX] ✅ Processing valid remote transmission: SRC=%d → DST=%d (local_srcid=%d)\n", 
-        sl_sch_subheader->SRC, sl_sch_subheader->DST, mac ? mac->src_id : -1);
-
-
-
-  // 🔧 ENHANCED COMMUNICATION TRACKING: Better handling of multi-UE scenarios
+  // Enhanced logging for multi-UE communication tracking
   static int pdu_counter = 0;
   bool track_communication = ((pdu_counter++ % 10) == 0);
   
   if (track_communication) {
-    LOG_I(NR_MAC, "[SL_MULTI_UE_COM] ✅ RX PDU #%d: SRC=%d->DST=%d, local_src=%d, frame=%d.%d, len=%d\n",
+    LOG_I(NR_MAC, "[SL_MULTI_UE_COM] RX PDU #%d: SRC=%d->DST=%d, local_src=%d, frame=%d.%d, len=%d\n",
           pdu_counter, sl_sch_subheader->SRC, sl_sch_subheader->DST, mac->src_id, frame, slot, pdu_len);
     
     // Track unique communication pairs
@@ -1492,14 +1437,14 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     if (new_src) {
       last_src_ids[pair_idx % 5] = sl_sch_subheader->SRC;
       pair_idx++;
-      LOG_I(NR_MAC, "[SL_MULTI_UE_COM] 🆕 New communication source detected: SRC=%d (total unique: %d)\n", 
+      LOG_I(NR_MAC, "[SL_MULTI_UE_COM] New communication source detected: SRC=%d (total unique: %d)\n", 
             sl_sch_subheader->SRC, min(pair_idx, 5));
     }
   }
   
-  // Log successful reception from remote UE (not self-loopback)
-  LOG_I(NR_MAC, "[SL_RX_DATA] ✅ Processing VALID SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d\n",
-        sl_sch_subheader->SRC, frame, slot, pdu_len);
+  // Log when we receive data from a remote UE
+  LOG_D(NR_MAC, "[SL_RX_DATA] Received SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d, pdu_type=%d\n",
+        sl_sch_subheader->SRC, frame, slot, pdu_len, pdu_type);
   
 
   uint8_t psfch_period = 0;

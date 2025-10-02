@@ -544,12 +544,6 @@ void extract_pscch_pdu(uint64_t *sci1_payload, int len,
   pos+=fsize;
   sci_pdu->frequency_resource_assignment.val = *sci1_payload>>(sci1_size-pos)&((1<<fsize)-1);
   LOG_D(NR_MAC,"frequency_resource_assignment(%d) in pos %d\n",sci_pdu->frequency_resource_assignment.val,pos-fsize);
-  
-    
-  LOG_I(NR_MAC, "[FRIV_RX] 📥 RECEIVING FRIV: FRIV=0x%x, nbits=%d, pos=%d\n", 
-        sci_pdu->frequency_resource_assignment.val, fsize, pos-fsize);
-
-
 
   // time-domain-assignment
   fsize = sci_pdu->time_resource_assignment.nbits;
@@ -636,20 +630,6 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
 	          *sl_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16,
 	          &l_subch,
 	          NULL,NULL);
-
-  LOG_I(NR_MAC, "[FRIV_RX] 📥 CONVERTED FRIV: frame=%d.%d, FRIV=0x%x → l_subch=%d, total_subch=%ld\n", 
-        frame, slot, sci_pdu->frequency_resource_assignment.val, l_subch, *sl_res_pool->sl_NumSubchannel_r16);
-        
-  // Calculate which subchannel this corresponds to
-  uint16_t decoded_subchannel = sci_pdu->frequency_resource_assignment.val;  // For simple mapping
-  uint16_t prb_start = decoded_subchannel * 25;
-  uint16_t prb_end = prb_start + 24;
-  
-  LOG_I(NR_MAC, "[SUBCHANNEL_DECODE] 🔍 RX: frame=%d.%d, detected_subchannel=%d, PRBs=[%d-%d], l_subch=%d\n", 
-        frame, slot, decoded_subchannel, prb_start, prb_end, l_subch);
-
-
-
   sensing_data_t sensing_data;
   sensing_data.frame_slot.frame = frame;
   sensing_data.frame_slot.slot = slot;

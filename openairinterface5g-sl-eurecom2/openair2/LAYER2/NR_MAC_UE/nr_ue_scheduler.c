@@ -3476,22 +3476,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         sl_ind->module_id, frame, slot,sl_ind->slot_type);
 
-    // 🔍 DEEP ANALYSIS: Log UE list state at function entry
-  LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 nr_ue_sl_pssch_scheduler ENTRY: frame=%d.%d, local_srcid=%d\n", 
-        frame, slot, mac->src_id);
-  int active_ues = 0;
-  for (int debug_i = 0; debug_i < CUR_SL_UE_CONNECTIONS; debug_i++) {
-    if (mac->sl_info.list[debug_i] != NULL) {
-      active_ues++;
-      LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋   slot[%d]: UE uid=%d, sched_psfch=%s\n", 
-            debug_i, mac->sl_info.list[debug_i]->uid,
-            mac->sl_info.list[debug_i]->UE_sched_ctrl.sched_psfch ? "YES" : "NO");
-    }
-  }
-  LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 Total active UEs: %d/%d\n", active_ues, CUR_SL_UE_CONNECTIONS);
-
-
-
   uint16_t slsch_pdu_length_max;
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
 
@@ -3508,21 +3492,10 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];
-    
-    // 🔧 CRITICAL FIX: Skip processing if this UE has same uid as our src_id (prevents self-transmission)
-    if (UE->uid == mac->src_id) {
-      LOG_W(NR_MAC, "[SELF_TRANSMISSION_PREVENTION] 🚫 Skipping UE uid=%d (same as src_id=%d) to prevent self-loopback\n", 
-            UE->uid, mac->src_id);
-      continue;
-    }
-    
     // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
     if (!UE->UE_sched_ctrl.sched_psfch) {
       continue;
     }
-
-    LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d) ✅ SAFE\n", 
-          i, UE->uid, mac->src_id);
 
     NR_mac_dir_stats_t *sl_mac_stats = &UE->mac_sl_stats.sl;
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
@@ -3571,17 +3544,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     */
     cur_harq->ndi ^= 1;
 
-    // 🔍 DEEP ANALYSIS: Log before calling nr_schedule_slsch
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞 CALLING nr_schedule_slsch: frame=%d.%d\n", frame, slot);
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞   local_srcid=%d, target_UE->uid=%d\n", mac->src_id, UE->uid);
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞   This will set dest_id=%d in sci2_pdu\n", UE->uid);
-
     nr_schedule_slsch(mac, frame, slot, &mac->sci1_pdu, &mac->sci2_pdu, NR_SL_SCI_FORMAT_2A,
                       UE, &slsch_pdu_length_max, cur_harq, &sched_ctrl->rlc_status[lcid], resource);
-
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞 AFTER nr_schedule_slsch: sci2_pdu configured\n");
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞   sci2_pdu.source_id=%d, sci2_pdu.dest_id=%d\n", 
-          mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
 
     *config_type = SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH;
     tx_config->number_pdus = 1;
@@ -3659,51 +3623,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       sl_sch_subheader->R = 0;
       sl_sch_subheader->SRC = mac->sci2_pdu.source_id;
       sl_sch_subheader->DST = mac->sci2_pdu.dest_id;
-      
-      // 🔍 IMMEDIATE VALIDATION: Check what we just set
-      LOG_I(NR_MAC, "[HEADER_SET] 🔧 Just set header: sci2_pdu(src=%d,dst=%d) -> header(SRC=%d,DST=%d)\n",
-            mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-
-        
-      // 🔍 DEEP ANALYSIS: Log detailed transmission information
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡 CREATING TRANSMISSION PDU: frame=%d.%d, local_srcid=%d\n", frame, slot, mac->src_id);
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   SCI2_PDU: source_id=%d, dest_id=%d\n", mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   PDU_HEADER: SRC=%d, DST=%d\n", sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      
-      // � RAW BYTE VERIFICATION: Check actual memory content
-      uint8_t *raw_tx_bytes = (uint8_t*)sl_sch_subheader;
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   RAW_TX_BYTES: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
-            raw_tx_bytes[0], raw_tx_bytes[1], raw_tx_bytes[2], raw_tx_bytes[3]);
-      
-      // �🚨 CRITICAL DEBUG: Final PDU verification before RF transmission
-      LOG_I(NR_MAC, "[PDU_PRE_RF] 📤 FINAL VERIFICATION: frame=%d.%d, srcid=%d", frame, slot, mac->src_id);
-      LOG_I(NR_MAC, "[PDU_PRE_RF] 📤   MEMORY PDU_HEADER at %p: V=%d, R=%d, SRC=%d, DST=%d", 
-            sl_sch_subheader, sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   UE->uid=%d (this is the target UE we're transmitting to)\n", UE->uid);
-      
-      if (mac->sci2_pdu.source_id == mac->sci2_pdu.dest_id) {
-        LOG_E(NR_MAC, "[TX_ANALYSIS] 🚨 SELF-TRANSMISSION DETECTED! srcid=%d transmitting to itself!\n", mac->src_id);
-        LOG_E(NR_MAC, "[TX_ANALYSIS] 🚨   This should NOT happen - investigating root cause...\n");
-      }
-      
-      // 🔍 CRITICAL: Log header before PDU pointer advancement
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
-            pdu, cur_harq->transportBlock);
-      
       pdu += sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
-      
-      // 🔍 CRITICAL: Log header after PDU pointer advancement  
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
-            pdu, cur_harq->transportBlock);
-
-
-
       LOG_D(NR_MAC, "%4d.%2d Tx V %d, R %d, SRC %d, DST %d\n", frame, slot, sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
       buflen_remain -= sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
       LOG_D(NR_MAC, "buflen_remain after adding SL_SCH_MAC_SUBHEADER_FIXED %d\n", buflen_remain);
@@ -3849,35 +3769,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     } // end of initial transmission
 
     const uint32_t TBS = pscch_pssch_pdu->tb_size;
-
-    // � MEMORY DEBUG: Check transportBlock header before memcpy
-    if (cur_harq->transportBlock) {
-      NR_SLSCH_MAC_SUBHEADER_FIXED *src_header = (NR_SLSCH_MAC_SUBHEADER_FIXED *)cur_harq->transportBlock;
-      LOG_I(NR_MAC, "[PRE_MEMCPY_CHECK] 📋 transportBlock header: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            src_header->V, src_header->R, src_header->SRC, src_header->DST);
-      LOG_I(NR_MAC, "[PRE_MEMCPY_CHECK] 📋 sci2_pdu reference: source_id=%d, dest_id=%d\n", 
-            mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
-    }
-
     memcpy(pscch_pssch_pdu->slsch_payload, cur_harq->transportBlock, TBS);
-
-    // 🔍 MEMORY DEBUG: Verify header after memcpy
-    if (pscch_pssch_pdu->slsch_payload) {
-      NR_SLSCH_MAC_SUBHEADER_FIXED *dest_header = (NR_SLSCH_MAC_SUBHEADER_FIXED *)pscch_pssch_pdu->slsch_payload;
-      LOG_I(NR_MAC, "[POST_MEMCPY_CHECK] � Payload header: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            dest_header->V, dest_header->R, dest_header->SRC, dest_header->DST);
-      
-      // 🚨 CORRUPTION DETECTION: Check if header got corrupted during memcpy
-      if (dest_header->DST != UE->uid) {
-        LOG_E(NR_MAC, "[CORRUPTION_DETECTED] 🚨 HEADER CORRUPTED! Expected DST=%d (UE->uid), got DST=%d\n", 
-              UE->uid, dest_header->DST);
-        LOG_E(NR_MAC, "[CORRUPTION_DETECTED] � Attempting to fix corruption...\n");
-        dest_header->DST = UE->uid;  // Fix corruption to correct target UE
-      }
-    }
-    
-   
-   
     // mark UE as scheduled
     sched_pssch->rbSize = 0;
     is_resource_allocated = true;
