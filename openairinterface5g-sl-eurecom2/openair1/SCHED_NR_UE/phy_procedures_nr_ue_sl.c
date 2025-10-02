@@ -94,6 +94,12 @@ void nr_fill_sl_rx_indication(sl_nr_rx_indication_t *rx_ind,
         slsch_status_t *slsch_status = (slsch_status_t *)typeSpecific;
         rx_slsch_pdu->pdu        = slsch_status->rdata->ulsch_harq->b;
         rx_slsch_pdu->pdu_length = slsch_status->rdata->ulsch_harq->TBS;
+        
+        // 🔍 CORRUPTION DEBUG: Check final PHY buffer when assigning to rx_ind
+        if (rx_slsch_pdu->pdu && rx_slsch_pdu->pdu_length >= 4) {
+          LOG_I(NR_MAC, "[PHY_RX_IND_DEBUG] 📡 nr_fill_sl_rx_indication - Final buffer: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
+                rx_slsch_pdu->pdu[0], rx_slsch_pdu->pdu[1], rx_slsch_pdu->pdu[2], rx_slsch_pdu->pdu[3]);
+        }
         rx_slsch_pdu->harq_pid   = slsch_status->rdata->harq_pid;
         rx_slsch_pdu->ack_nack   = (slsch_status->rxok==true) ? 1 : 0;
 
@@ -259,7 +265,21 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
         slsch_harq->processedSegments,
         rdata->nbSegments);
   if (decodeSuccess) {
-    memcpy(slsch_harq->b + rdata->offset, slsch_harq->c[r], rdata->Kr_bytes - (slsch_harq->F >> 3) - ((slsch_harq->C > 1) ? 3 : 0));
+    size_t copy_bytes = rdata->Kr_bytes - (slsch_harq->F >> 3) - ((slsch_harq->C > 1) ? 3 : 0);
+    
+    // 🔍 CORRUPTION DEBUG: Check source before memcpy
+    if (rdata->offset == 0 && copy_bytes >= 4) {
+      LOG_I(NR_MAC, "[PHY_DECODE_DEBUG] 📡 Before memcpy - Source c[%d]: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
+            r, slsch_harq->c[r][0], slsch_harq->c[r][1], slsch_harq->c[r][2], slsch_harq->c[r][3]);
+    }
+    
+    memcpy(slsch_harq->b + rdata->offset, slsch_harq->c[r], copy_bytes);
+    
+    // 🔍 CORRUPTION DEBUG: Check destination after memcpy
+    if (rdata->offset == 0 && slsch_harq->TBS >= 4) {
+      LOG_I(NR_MAC, "[PHY_DECODE_DEBUG] 📡 After memcpy - Dest b: [0]=0x%02x [1]=0x%02x [2]=0x%02x [3]=0x%02x\n", 
+            slsch_harq->b[0], slsch_harq->b[1], slsch_harq->b[2], slsch_harq->b[3]);
+    }
 
   } else {
     LOG_D(NR_PHY, "ULSCH %d in error\n", rdata->ulsch_id);
