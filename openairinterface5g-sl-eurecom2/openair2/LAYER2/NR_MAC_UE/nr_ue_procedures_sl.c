@@ -1437,24 +1437,35 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
         (mac && mac->src_id == sl_sch_subheader->SRC) ? "YES" : "NO");
   
   // CRITICAL DEBUG: Log every PDU processing attempt with source UE info
+  // 🚫 ULTIMATE SELF-LOOPBACK PROTECTION: Multiple detection mechanisms
+  bool is_self_src = (mac && mac->src_id == sl_sch_subheader->SRC);
+  bool is_corrupted_dst_zero = (sl_sch_subheader->DST == 0 && is_self_src);
+  
+  // � STATISTICAL TRACKING: Track corruption events
+  static uint32_t corruption_count = 0;
+  static uint32_t total_rx_count = 0;
+  total_rx_count++;
+
   LOG_I(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
         module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);
   
-    // 🔧 ENHANCED SELF-LOOPBACK PREVENTION: Skip processing if UE receives its own transmission
-  // This handles both normal self-loopback and corrupted headers where DST=0 due to PHY issues
-  bool is_self_loopback = (mac && mac->src_id == sl_sch_subheader->SRC);
-  bool is_corrupted_self_tx = (mac && mac->src_id == sl_sch_subheader->SRC && sl_sch_subheader->DST == 0);
-  
-  if (is_self_loopback) {
-    if (is_corrupted_self_tx) {
-      LOG_W(NR_MAC, "[SL_PDU_DEBUG] 🔧 CORRUPTED SELF-LOOPBACK: UE srcid=%d received corrupted own transmission (DST=%d->0)\n", 
-            mac->src_id, sl_sch_subheader->DST);
-      LOG_W(NR_MAC, "[SL_PDU_DEBUG] 🔧   This indicates PHY/RF layer corruption of DST field\n");
+  if (is_self_src) {
+    if (is_corrupted_dst_zero) {
+      corruption_count++;
+      LOG_E(NR_MAC, "[CORRUPTION_TRACKER] 🔧 DST CORRUPTION DETECTED: UE srcid=%d received corrupted own transmission #%d (%.2f%% corruption rate)\n", 
+            mac->src_id, corruption_count, (100.0 * corruption_count / total_rx_count));
+      LOG_E(NR_MAC, "[CORRUPTION_TRACKER] 🔧   CAUSE: PHY/RF simulator corrupted DST field from 1→0\n");
     } else {
-      LOG_I(NR_MAC, "[SL_PDU_DEBUG] ⚠️  SELF-LOOPBACK DETECTED: UE srcid=%d ignoring its own transmission\n", mac->src_id);
+      LOG_I(NR_MAC, "[SL_PDU_DEBUG] ⚠️  NORMAL SELF-LOOPBACK: UE srcid=%d ignoring its own transmission (DST=%d)\n", mac->src_id, sl_sch_subheader->DST);
     }
+    
+    // 🛡️ ALWAYS skip self-transmissions regardless of corruption
     return;
   }
+  
+  // 🎯 VALID REMOTE TRANSMISSION: Process only if not from self
+  LOG_I(NR_MAC, "[REMOTE_RX] ✅ Processing valid remote transmission: SRC=%d → DST=%d (local_srcid=%d)\n", 
+        sl_sch_subheader->SRC, sl_sch_subheader->DST, mac ? mac->src_id : -1);
 
 
 
