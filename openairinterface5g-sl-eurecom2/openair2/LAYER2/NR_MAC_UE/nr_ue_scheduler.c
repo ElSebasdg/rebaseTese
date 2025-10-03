@@ -4181,7 +4181,20 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      uint8_t mask = mac->sl_rx_res_pool->ext1->sl_TimeResource_r16->buf[slot_mod_period>>3];
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
-  if (sl_ind->slot_type==SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) rx_allowed=false;
+  // Only disable RX if this UE is actually transmitting or no PHY data available
+  // Allow RX during TX slots to receive other UEs' transmissions 
+  bool this_ue_is_transmitting = (resource != NULL && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX);
+  if (this_ue_is_transmitting || sl_ind->phy_data==NULL) {
+    rx_allowed=false;
+    if (this_ue_is_transmitting) {
+      LOG_I(NR_MAC, "[RX_DISABLED] UE%d frame=%d.%d: RX disabled - this UE is transmitting\n", 
+            mac->src_id, frame, slot);
+    }
+  } else if (sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
+    // This is a TX slot but this UE is not transmitting, so allow RX to receive others
+    LOG_I(NR_MAC, "[RX_ENABLED] UE%d frame=%d.%d: RX enabled during TX slot - can receive other UEs\n", 
+          mac->src_id, frame, slot);
+  }
   
   // Debug logging for slot access permissions
   if ((frame % 10 == 0) && (slot < 5)) {  // Only log occasionally to avoid spam
