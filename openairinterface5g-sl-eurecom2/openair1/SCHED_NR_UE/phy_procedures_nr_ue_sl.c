@@ -589,33 +589,17 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
 
-    // Temporary: Use simpler approach - scan all subchannels to avoid segfault
-    // Safety check for valid parameters
-    if (!ue || phy_data->nr_sl_pscch_pdu.num_subch == 0 || phy_data->nr_sl_pscch_pdu.num_subch > 16) {
-        LOG_E(NR_PHY,"[PSCCH_RX] Invalid parameters: ue=%p, num_subch=%d\n", 
-              ue, phy_data->nr_sl_pscch_pdu.num_subch);
-        return;
-    }
-    
-    // Set up blind decoding for all subchannels (simpler approach)
+    // Set up blind decoding for all subchannels - original simple approach
     rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.num_subch;
     rel15->num_dci_options = 1;
     rel15->dci_length_options[0] = phy_data->nr_sl_pscch_pdu.sci_1a_length;
     
-    // Configure candidates for each subchannel
     for (int subchannel = 0; subchannel < phy_data->nr_sl_pscch_pdu.num_subch; subchannel++) {
         // L provides the number of PRBs used by PSCCH
         rel15->L[subchannel] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
         // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
         rel15->CCE[subchannel] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
-        
-        LOG_D(NR_PHY,"[BLIND_DECODE] Setting up PSCCH candidate %d: CCE_offset=%d, PRB_range=[%d-%d]\n", 
-              subchannel, rel15->CCE[subchannel], 
-              rel15->CCE[subchannel], rel15->CCE[subchannel] + phy_data->nr_sl_pscch_pdu.pscch_numrbs - 1);
     }
-    
-    LOG_D(NR_PHY,"[PSCCH_RX] UE%d BLIND DECODING: frame=%d.%d, scanning %d subchannels\n", 
-          ue->Mod_id, frame_rx, nr_slot_rx, phy_data->nr_sl_pscch_pdu.num_subch);
  
     // Hold the channel estimates in frequency domain.
     int32_t pscch_est_size = ((((fp->symbols_per_slot*(fp->ofdm_symbol_size+LTE_CE_FILTER_LENGTH))+15)/16)*16);

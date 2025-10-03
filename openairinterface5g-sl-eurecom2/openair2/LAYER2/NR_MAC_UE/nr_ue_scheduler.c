@@ -3218,9 +3218,9 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
   uint16_t frame_tx_16 = frame_tx % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_tx_in_16frames = (frame_tx_16 * slots_per_frame) + slot_tx;
   
-  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
+  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame, slot, frame_16, slot_in_16frames);
-  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
+  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame_tx, slot_tx, frame_tx_16, slot_tx_in_16frames);
 
   //Adjust PSBCH Indices based on current RX timing
@@ -3231,10 +3231,10 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
   ssb_timealloc = &sl_mac->tx_sl_bch.ssb_time_alloc;
   sl_mac->tx_sl_bch.num_ssb = sl_adjust_ssb_indices(ssb_timealloc, slot_tx_in_16frames, &sl_mac->tx_sl_bch.ssb_slot);
 
-  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
+  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on RX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
                                                             mod_id, frame, slot, sl_mac->rx_sl_bch.num_ssb,
                                                             sl_mac->rx_sl_bch.ssb_slot);
-  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
+  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on TX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
                                                             mod_id, frame_tx, slot_tx, sl_mac->tx_sl_bch.num_ssb,
                                                             sl_mac->tx_sl_bch.ssb_slot);
 
@@ -4181,21 +4181,8 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      uint8_t mask = mac->sl_rx_res_pool->ext1->sl_TimeResource_r16->buf[slot_mod_period>>3];
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
-  // Only disable RX if this UE is actually transmitting or no PHY data available
-  // Allow RX during TX slots to receive other UEs' transmissions 
-  bool this_ue_is_transmitting = (resource != NULL && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX);
-  if (this_ue_is_transmitting || sl_ind->phy_data==NULL) {
+  if (sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) {
     rx_allowed=false;
-    if (this_ue_is_transmitting) {
-      LOG_I(NR_MAC, "[RX_DISABLED] UE%d frame=%d.%d: RX disabled - this UE is transmitting\n", 
-            mac->src_id, frame, slot);
-    }
-  } else if (sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
-    // This is a TX slot but this UE is not transmitting, so allow RX to receive others
-    if ((frame % 20 == 0) && (slot < 5)) {  // Reduce logging frequency
-      LOG_D(NR_MAC, "[RX_ENABLED] UE%d frame=%d.%d: RX enabled during TX slot - can receive other UEs\n", 
-            mac->src_id, frame, slot);
-    }
   }
   
   // Debug logging for slot access permissions
