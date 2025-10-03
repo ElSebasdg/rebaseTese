@@ -594,11 +594,19 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->num_dci_options = 1;
     rel15->dci_length_options[0] = phy_data->nr_sl_pscch_pdu.sci_1a_length;
     
+    LOG_I(NR_PHY,"[PSCCH_RX] Setting up blind decoding for %d subchannels (subchannel_size=%d PRBs)\n", 
+          phy_data->nr_sl_pscch_pdu.num_subch, phy_data->nr_sl_pscch_pdu.subchannel_size);
+    
     for (int subchannel = 0; subchannel < phy_data->nr_sl_pscch_pdu.num_subch; subchannel++) {
         // L provides the number of PRBs used by PSCCH
         rel15->L[subchannel] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
         // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
         rel15->CCE[subchannel] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
+        
+        LOG_D(NR_PHY,"[PSCCH_RX] Subchannel %d: CCE=%d (PRBs %d-%d), L=%d\n", 
+              subchannel, rel15->CCE[subchannel], 
+              rel15->CCE[subchannel], rel15->CCE[subchannel] + phy_data->nr_sl_pscch_pdu.subchannel_size - 1,
+              rel15->L[subchannel]);
     }
  
     // Hold the channel estimates in frequency domain.
