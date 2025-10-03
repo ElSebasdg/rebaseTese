@@ -4192,8 +4192,10 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
     }
   } else if (sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     // This is a TX slot but this UE is not transmitting, so allow RX to receive others
-    LOG_I(NR_MAC, "[RX_ENABLED] UE%d frame=%d.%d: RX enabled during TX slot - can receive other UEs\n", 
-          mac->src_id, frame, slot);
+    if ((frame % 20 == 0) && (slot < 5)) {  // Reduce logging frequency
+      LOG_D(NR_MAC, "[RX_ENABLED] UE%d frame=%d.%d: RX enabled during TX slot - can receive other UEs\n", 
+            mac->src_id, frame, slot);
+    }
   }
   
   // Debug logging for slot access permissions
@@ -4209,6 +4211,14 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
                       ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
 
   if ((prev_slot != slot) && rx_allowed && !is_psbch_slot) {
+      // Add safety checks before PSCCH RX scheduling
+      if (!sl_mac || !sl_mac->sl_RxPool[0] || !mac->sl_bwp || !mac->sl_rx_res_pool) {
+        LOG_E(NR_MAC, "[SAFETY_CHECK] UE%d frame=%d.%d: NULL pointer check failed - skipping PSCCH RX\n", 
+              mac->src_id, frame, slot);
+        prev_slot = slot;
+        return;
+      }
+      
       frameslot_t fs;
       fs.frame = frame;
       fs.slot = slot;
