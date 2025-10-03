@@ -996,6 +996,12 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
           break;    // If DCI is found, no need to check for remaining DCI lengths
         }
       } else {
+        // Enhanced debug logging for SCI decoding failures
+        if (sci_ind != NULL) {
+          uint32_t subchannel_index = CCEind; 
+          LOG_W(NR_PHY,"[PSCCH_RX] ❌ UE%d FAILED SCI1A: frame=%d.%d, subchannel=%d, CRC=0x%x≠RNTI=0x%x, RSRP=%d dBm\n", 
+                ue->Mod_id, proc->frame_rx, proc->nr_slot_rx, subchannel_index, crc, n_rnti, *rsrp_dBm);
+        }
         LOG_D(PHY,"(%i.%i) Decoded crc %x does not match rnti %x for DCI format %d\n", proc->frame_rx, proc->nr_slot_rx, crc, n_rnti, rel15->dci_format_options[k]);
       }
     }
