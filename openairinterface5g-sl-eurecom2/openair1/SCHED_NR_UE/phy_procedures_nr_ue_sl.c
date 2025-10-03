@@ -564,6 +564,10 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
   else if (phy_data->sl_rx_action == SL_NR_CONFIG_TYPE_RX_PSCCH){
 
     fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15 = &phy_data->phy_pdcch_config.pdcch_config[0];
+    
+    LOG_I(NR_PHY,"[PSCCH_RX] 🔍 UE%d BLIND DECODING: frame=%d.%d, scanning %d subchannels\n", 
+          ue->Mod_id, frame_rx, nr_slot_rx, phy_data->nr_sl_pscch_pdu.num_subch);
+          
     LOG_D(NR_PHY,"pscch_numsym = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numsym);
     LOG_D(NR_PHY,"pscch_startrb = %d\n",phy_data->nr_sl_pscch_pdu.pscch_startrb);
     LOG_D(NR_PHY,"pscch_numrbs = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numrbs);
@@ -589,13 +593,22 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
 
-    rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.l_subch;
+    // Set up blind decoding for all subchannels
+    rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.num_subch;
     rel15->num_dci_options = 1;
     rel15->dci_length_options[0] = phy_data->nr_sl_pscch_pdu.sci_1a_length;
-    // L now provides the number of PRBs used by PSCCH instead of the number of CCEs
-    rel15->L[0] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
-    // This provides the offset of the candidate of PSCCH in RBs instead of CCEs
-    rel15->CCE[0] = 0;
+    
+    // Configure candidates for each subchannel
+    for (int subchannel = 0; subchannel < phy_data->nr_sl_pscch_pdu.num_subch; subchannel++) {
+        // L provides the number of PRBs used by PSCCH
+        rel15->L[subchannel] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
+        // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
+        rel15->CCE[subchannel] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
+        
+        LOG_D(NR_PHY,"[BLIND_DECODE] Setting up PSCCH candidate %d: CCE_offset=%d, PRB_range=[%d-%d]\n", 
+              subchannel, rel15->CCE[subchannel], 
+              rel15->CCE[subchannel], rel15->CCE[subchannel] + phy_data->nr_sl_pscch_pdu.pscch_numrbs - 1);
+    }
  
     // Hold the channel estimates in frequency domain.
     int32_t pscch_est_size = ((((fp->symbols_per_slot*(fp->ofdm_symbol_size+LTE_CE_FILTER_LENGTH))+15)/16)*16);

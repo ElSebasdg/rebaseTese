@@ -3922,7 +3922,8 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
                        sl_res_pool,
                        sl_has_psfch);
 
-
+   LOG_I(NR_MAC, "[PSCCH_SCHEDULER] 📡 UE%d SCHEDULING PSCCH RX: frame=%d.%d, scanning subchannels\n", 
+         sl_ind->module_id, sl_ind->frame_rx, sl_ind->slot_rx);
    LOG_D(NR_MAC, "[UE%d] TTI-%d:%d RX PSCCH REQ \n", sl_ind->module_id,sl_ind->frame_rx, sl_ind->slot_rx);
 
 }
