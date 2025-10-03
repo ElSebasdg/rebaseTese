@@ -240,13 +240,22 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
   //_PSCCH PSSCH TX: Size of subchannels in a PSSCH resource (l_subch)
   AssertFatal(sci_pdu->time_resource_assignment.val == 0, "need to handle a non-zero time_resource_assignment (2 or 3 time hops, N=2,3)\n");
   
+  // Decode FRIV to get starting subchannel and length
+  uint16_t start_subchannel = 0;
   convNRFRIV(sci_pdu->frequency_resource_assignment.val,
              nr_sl_pssch_pscch_pdu->num_subch,
              *sl_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16,
              &nr_sl_pssch_pscch_pdu->l_subch,
-             NULL, NULL);
-  // freq domain allocation starts
-  nr_sl_pssch_pscch_pdu->startrb = *sl_res_pool->sl_StartRB_Subchannel_r16;
+             &start_subchannel, NULL);
+  
+  // Calculate actual starting PRB based on decoded subchannel index
+  // startrb = base_rb + (subchannel_index * subchannel_size_in_prbs)
+  nr_sl_pssch_pscch_pdu->startrb = *sl_res_pool->sl_StartRB_Subchannel_r16 + 
+                                   (start_subchannel * nr_sl_pssch_pscch_pdu->subchannel_size);
+  
+  LOG_I(NR_MAC, "[SUBCHANNEL_FIX] 🔧 FRIV=0x%x → subchannel=%d, startrb=%d (base=%d + subchan=%d × size=%d)\n",
+        sci_pdu->frequency_resource_assignment.val, start_subchannel, nr_sl_pssch_pscch_pdu->startrb,
+        *sl_res_pool->sl_StartRB_Subchannel_r16, start_subchannel, nr_sl_pssch_pscch_pdu->subchannel_size);
   //number of symbols for Sidelink transmission on PSSCH/PSCCH
   //(Total Sidelink symbols available - number of psfch symbols configured - 2)
   //Guard symbol + AGC symbol are also excluded
