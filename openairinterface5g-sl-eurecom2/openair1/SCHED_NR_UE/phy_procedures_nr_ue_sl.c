@@ -29,6 +29,7 @@
 #include "common/utils/utils.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
+#include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
 #include "intertask_interface.h"
 #include "T.h"
 #include "PHY/MODULATION/modulation_UE.h"
@@ -589,25 +590,53 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
 
-    // Set up blind decoding for all subchannels - original simple approach
-    rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.num_subch;
+    // Set up selective blind decoding based on srcid
+    NR_UE_MAC_INST_t *mac = get_mac_inst(ue->Mod_id);
+    int my_srcid = (mac != NULL) ? mac->src_id : ue->Mod_id; // fallback to Mod_id if MAC not available
+    
     rel15->num_dci_options = 1;
     rel15->dci_length_options[0] = phy_data->nr_sl_pscch_pdu.sci_1a_length;
     
-    LOG_I(NR_PHY,"[PSCCH_RX] Setting up blind decoding for %d subchannels (subchannel_size=%d PRBs)\n", 
-          phy_data->nr_sl_pscch_pdu.num_subch, phy_data->nr_sl_pscch_pdu.subchannel_size);
+    // 🎯 SELECTIVE SENSING LOGIC:
+    // - srcid=0 (sync ref): blind decode subchannels 1 and 2 (avoid self-interference)
+    // - srcid=1,2: blind decode subchannel 0 (sense sync ref)
+    int candidate_idx = 0;
+    
+    LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING: my_srcid=%d, total_subchannels=%d\n", 
+          my_srcid, phy_data->nr_sl_pscch_pdu.num_subch);
     
     for (int subchannel = 0; subchannel < phy_data->nr_sl_pscch_pdu.num_subch; subchannel++) {
-        // L provides the number of PRBs used by PSCCH
-        rel15->L[subchannel] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
-        // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
-        rel15->CCE[subchannel] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
+        bool should_sense_subchannel = false;
         
-        LOG_D(NR_PHY,"[PSCCH_RX] Subchannel %d: CCE=%d (PRBs %d-%d), L=%d\n", 
-              subchannel, rel15->CCE[subchannel], 
-              rel15->CCE[subchannel], rel15->CCE[subchannel] + phy_data->nr_sl_pscch_pdu.subchannel_size - 1,
-              rel15->L[subchannel]);
+        if (my_srcid == 0) {
+            // Sync ref: sense subchannels 1 and 2 (not own subchannel 0)
+            should_sense_subchannel = (subchannel == 1 || subchannel == 2);
+        } else {
+            // Normal UEs (srcid 1,2): sense subchannel 0 (sync ref)
+            should_sense_subchannel = (subchannel == 0);
+        }
+        
+        if (should_sense_subchannel) {
+            // L provides the number of PRBs used by PSCCH
+            rel15->L[candidate_idx] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
+            // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
+            rel15->CCE[candidate_idx] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
+            
+            LOG_I(NR_PHY,"[PSCCH_RX] ✅ SENSING subchannel %d: CCE=%d (PRBs %d-%d), L=%d (candidate_idx=%d)\n", 
+                  subchannel, rel15->CCE[candidate_idx], 
+                  rel15->CCE[candidate_idx], rel15->CCE[candidate_idx] + phy_data->nr_sl_pscch_pdu.subchannel_size - 1,
+                  rel15->L[candidate_idx], candidate_idx);
+            
+            candidate_idx++;
+        } else {
+            LOG_I(NR_PHY,"[PSCCH_RX] ❌ SKIPPING subchannel %d: avoid self-interference (srcid=%d)\n", 
+                  subchannel, my_srcid);
+        }
     }
+    
+    rel15->number_of_candidates = candidate_idx;
+    LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING CONFIGURED: srcid=%d, total_candidates=%d\n", 
+          my_srcid, rel15->number_of_candidates);
  
     // Hold the channel estimates in frequency domain.
     int32_t pscch_est_size = ((((fp->symbols_per_slot*(fp->ofdm_symbol_size+LTE_CE_FILTER_LENGTH))+15)/16)*16);
