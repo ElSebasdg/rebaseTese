@@ -825,7 +825,7 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
       
       // 🔍 CRITICAL TX TRACKING: Log what this UE is transmitting
       LOG_W(NR_PHY, "[TX_TRACKING] 📤 UE%d TRANSMITTING: srcid=%d→dstid=%d, frame=%d.%d\n",
-            ue->Mod_id, pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
+            pdu_ptr[1], pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
       LOG_W(NR_PHY, "[TX_TRACKING] 📤   PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n",
             phy_data->nr_sl_pssch_pscch_pdu.startrb, 
             phy_data->nr_sl_pssch_pscch_pdu.l_subch,
