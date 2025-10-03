@@ -3469,12 +3469,24 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   }
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
-  if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
+  if (slot > 9 && get_nrUE_params()->sync_ref) {
+    LOG_D(NR_MAC, "[SYNC_REF_TX] ❌ Sync ref cannot transmit in slot %d (> 9)\n", slot);
+    return is_resource_allocated;
+  }
 
-  if (slot < 10 && !get_nrUE_params()->sync_ref) return is_resource_allocated;
+  if (slot < 10 && !get_nrUE_params()->sync_ref) {
+    LOG_D(NR_MAC, "[UE_TX] ❌ Normal UE cannot transmit in slot %d (< 10)\n", slot);
+    return is_resource_allocated;
+  }
 
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         sl_ind->module_id, frame, slot,sl_ind->slot_type);
+  
+  if (get_nrUE_params()->sync_ref && (slot >= 6 && slot <= 9)) {
+    LOG_I(NR_MAC, "[SYNC_REF_TX] ✅ Sync ref in valid TX slot %d (allowed: 6-9)\n", slot);
+  } else if (!get_nrUE_params()->sync_ref && (slot >= 16 && slot <= 19)) {
+    LOG_I(NR_MAC, "[UE_TX] ✅ Normal UE in valid TX slot %d (allowed: 16-19)\n", slot);
+  }
 
     // 🔍 DEEP ANALYSIS: Log UE list state at function entry
   LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 nr_ue_sl_pssch_scheduler ENTRY: frame=%d.%d, local_srcid=%d\n", 
@@ -3496,6 +3508,26 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
 
   NR_SL_UEs_t *UE_info = &mac->sl_info;
+
+  // SYNC REF ENHANCEMENT: Force transmission with dummy data if sync_ref and no active UEs
+  if (get_nrUE_params()->sync_ref && (*(UE_info->list) == NULL || active_ues == 0)) {
+    // Create a dummy UE entry for sync ref to have something to transmit
+    static bool dummy_ue_created = false;
+    if (!dummy_ue_created && (slot >= 6 && slot <= 9)) {
+      LOG_I(NR_MAC, "[SYNC_REF_TX] 📡 Creating dummy transmission data for sync ref in slot %d\n", slot);
+      
+      // Add a minimal dummy payload to force transmission - slsch_payload is a fixed array
+      memset(mac->slsch_payload, 0, sizeof(mac->slsch_payload));
+      sprintf((char*)mac->slsch_payload, "SYNC_REF_DUMMY_DATA_FRAME_%d_SLOT_%d", frame, slot);
+      
+      // Ensure there's at least minimal data to transmit
+      tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
+      tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload_length = 32;
+      
+      LOG_I(NR_MAC, "[SYNC_REF_TX] 📡 Forcing sync ref transmission with dummy data\n");
+      dummy_ue_created = true;
+    }
+  }
 
   if (*(UE_info->list) == NULL) {
     LOG_D(NR_MAC, "UE list is empty\n");

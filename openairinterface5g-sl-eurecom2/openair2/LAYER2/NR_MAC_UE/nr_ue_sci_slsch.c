@@ -253,7 +253,7 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
   nr_sl_pssch_pscch_pdu->startrb = *sl_res_pool->sl_StartRB_Subchannel_r16 + 
                                    (start_subchannel * nr_sl_pssch_pscch_pdu->subchannel_size);
   
-  LOG_I(NR_MAC, "[SUBCHANNEL_FIX] 🔧 FRIV=0x%x → subchannel=%d, startrb=%d (base=%d + subchan=%d × size=%d)\n",
+  LOG_I(NR_MAC, "[SUBCHANNEL_FIX] 🔧 FRIV=0x%x → subchannel=%d, startrb=%d (base=%ld + subchan=%d × size=%d)\n",
         sci_pdu->frequency_resource_assignment.val, start_subchannel, nr_sl_pssch_pscch_pdu->startrb,
         *sl_res_pool->sl_StartRB_Subchannel_r16, start_subchannel, nr_sl_pssch_pscch_pdu->subchannel_size);
   //number of symbols for Sidelink transmission on PSSCH/PSCCH
