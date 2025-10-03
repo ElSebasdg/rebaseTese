@@ -3922,8 +3922,8 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
                        sl_res_pool,
                        sl_has_psfch);
 
-   LOG_I(NR_MAC, "[PSCCH_SCHEDULER] 📡 UE%d SCHEDULING PSCCH RX: frame=%d.%d, scanning subchannels\n", 
-         sl_ind->module_id, sl_ind->frame_rx, sl_ind->slot_rx);
+   LOG_I(NR_MAC, "[PSCCH_SCHEDULER] 📡 UE%d SCHEDULING PSCCH RX: frame=%d.%d, slot_type=%d\n", 
+         sl_ind->module_id, sl_ind->frame_rx, sl_ind->slot_rx, sl_ind->slot_type);
    LOG_D(NR_MAC, "[UE%d] TTI-%d:%d RX PSCCH REQ \n", sl_ind->module_id,sl_ind->frame_rx, sl_ind->slot_rx);
 
 }
@@ -4182,6 +4182,13 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
   if (sl_ind->slot_type==SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) rx_allowed=false;
+  
+  // Debug logging for slot access permissions
+  if ((frame % 10 == 0) && (slot < 5)) {  // Only log occasionally to avoid spam
+    LOG_I(NR_MAC, "[SLOT_ACCESS] UE%d frame=%d.%d: rx_allowed=%d, tx_allowed=%d, slot_type=%d\n", 
+          mac->src_id, frame, slot, rx_allowed, tx_allowed, sl_ind->slot_type);
+  }
+  
   static uint16_t prev_slot = 0;
   NR_SL_PSFCH_Config_r16_t *sl_psfch_config = mac->sl_tx_res_pool->sl_PSFCH_Config_r16 ? mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup : NULL;
   const uint8_t psfch_periods[] = {0,1,2,4};
@@ -4204,6 +4211,8 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
 
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
+    LOG_I(NR_MAC, "[PSSCH_SCHEDULER] 📤 UE%d SCHEDULING TX: frame=%d.%d, slot_type=%d\n", 
+          mac->src_id, frame, slot, sl_ind->slot_type);
     bool is_resource_allocated = nr_ue_sl_pssch_scheduler(mac, sl_ind, mac->sl_bwp, mac->sl_tx_res_pool, &tx_config, resource, &tti_action);
     if (is_resource_allocated && mac->sci2_pdu.csi_req) {
       nr_ue_sl_csi_rs_scheduler(mac, mu, mac->sl_bwp, &tx_config, NULL, &tti_action);

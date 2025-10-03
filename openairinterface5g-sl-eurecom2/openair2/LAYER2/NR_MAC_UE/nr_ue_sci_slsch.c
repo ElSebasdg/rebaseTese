@@ -256,7 +256,7 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
   //Guard symbol + AGC symbol are also excluded
   //Indicates the number of symbols for PSCCH+PSSCH txn
   int num_psfch_symbols = 0;
-  LOG_I(NR_MAC,"[STARTRB_CALC] 📍 CALCULATED startrb=%d (base=%d + subchannel=%d * size=%d), pscch_numsym=%d, pscch_numrbs=%d\n",
+  LOG_I(NR_MAC,"[STARTRB_CALC] 📍 CALCULATED startrb=%d (base=%ld + subchannel=%d * size=%d), pscch_numsym=%d, pscch_numrbs=%d\n",
   nr_sl_pssch_pscch_pdu->startrb,
   *sl_res_pool->sl_StartRB_Subchannel_r16,
   startsc,
