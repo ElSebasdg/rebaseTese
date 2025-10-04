@@ -553,7 +553,7 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     LOG_I(NR_MAC, "[SYNC_REF_INIT] 🔧 BEFORE setting is_synced: mac=%p, is_synced=%d, src_id=%d\n", 
           mac, mac->is_synced, mac->src_id);
     
-    mac->is_synced = true;
+    //mac->is_synced = true;
     
     LOG_I(NR_MAC, "[SYNC_REF_INIT] ✅ AFTER setting is_synced: mac=%p, is_synced=%d, src_id=%d\n", 
           mac, mac->is_synced, mac->src_id);

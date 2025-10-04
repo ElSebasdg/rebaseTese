@@ -675,6 +675,7 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
          sensing_data.subch_start,
          sensing_data.subch_len);
 
+  
   if (sci_pdu->reserved.val && !mac->is_synced) {
     LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 Setting is_synced=true via SCI reserved bit\n");
     LOG_I(NR_MAC, "[SYNC_DEBUG] 📍 Location: nr_ue_sci_slsch.c line ~679, src_id=%d\n", mac->src_id);

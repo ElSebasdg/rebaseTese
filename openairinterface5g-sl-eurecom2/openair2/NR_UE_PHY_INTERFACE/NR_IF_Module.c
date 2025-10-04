@@ -1569,7 +1569,7 @@ int nr_ue_sl_indication(nr_sidelink_indication_t *sl_indication)
   } if (sl_indication->sci_ind) {
     sl_nr_process_sci_ind(module_id, cc_id, frame, slot, sl_mac, sl_indication->sci_ind, sl_indication->phy_data);
   } else {
-    LOG_E(NR_MAC, "%sCalling SL scheduler %s\n", KGRN, KNRM);
+    //LOG_E(NR_MAC, "%sCalling SL scheduler %s\n", KGRN, KNRM);
     nr_ue_sidelink_scheduler(sl_indication);
   }
   LOG_D(NR_MAC,"returning from nr_sl_indication\n");
