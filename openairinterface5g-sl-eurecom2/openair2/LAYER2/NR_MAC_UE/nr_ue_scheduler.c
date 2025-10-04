@@ -85,6 +85,7 @@ static void print_sensing_data_list(List_t *sensing_data, int line) {
   }
 }
 
+
 sl_resource_info_t* get_resource_element(List_t* resource_list, frameslot_t sfn) {
   for (int i = 0; i < resource_list->size; i++) {
     sl_resource_info_t *itr_rsrc = (sl_resource_info_t*)((char*)resource_list->data + i * resource_list->element_size);
@@ -4159,6 +4160,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   frame_slot.frame = frame;
   frame_slot.slot = slot;
 
+  // resource selection and sensing only if not PSBCH slot
   sl_resource_info_t *resource = NULL;
   if (mac->sl_candidate_resources && mac->sl_candidate_resources->size > 0 && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     LOG_D(NR_MAC, "%4d.%2d sl_candidate_resources %p size %ld, capacity %ld slot_type %d\n", frame, slot, mac->sl_candidate_resources, mac->sl_candidate_resources->size, mac->sl_candidate_resources->capacity, sl_ind->slot_type);
@@ -4251,6 +4253,15 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       prev_slot = slot;
   }
 
+
+  // log to check conditions before calling pssch scheduler
+  LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
+        frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
+    
+  // If sidelink resource pool is configured
+  // AND NOT a PSBCH slot
+  // AND TX is allowed in this slot
+  // AND slot type is TX
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
     LOG_I(NR_MAC, "[PSSCH_SCHEDULER] 📤 UE%d SCHEDULING TX: frame=%d.%d, slot_type=%d\n", 

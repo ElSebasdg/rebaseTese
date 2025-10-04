@@ -602,8 +602,8 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     // - srcid=1,2: blind decode subchannel 0 (sense sync ref)
     int candidate_idx = 0;
     
-    LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING: my_srcid=%d, total_subchannels=%d\n", 
-          my_srcid, phy_data->nr_sl_pscch_pdu.num_subch);
+    //LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING: my_srcid=%d, total_subchannels=%d\n", 
+          // my_srcid, phy_data->nr_sl_pscch_pdu.num_subch);
     
     for (int subchannel = 0; subchannel < phy_data->nr_sl_pscch_pdu.num_subch; subchannel++) {
         bool should_sense_subchannel = false;
@@ -621,22 +621,22 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
             rel15->L[candidate_idx] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
             // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
             rel15->CCE[candidate_idx] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
-            
-            LOG_I(NR_PHY,"[PSCCH_RX] ✅ SENSING subchannel %d: CCE=%d (PRBs %d-%d), L=%d (candidate_idx=%d)\n", 
-                  subchannel, rel15->CCE[candidate_idx], 
-                  rel15->CCE[candidate_idx], rel15->CCE[candidate_idx] + phy_data->nr_sl_pscch_pdu.subchannel_size - 1,
-                  rel15->L[candidate_idx], candidate_idx);
-            
+
+            //LOG_I(NR_PHY,"[PSCCH_RX] ✅ SENSING subchannel %d: CCE=%d (PRBs %d-%d), L=%d (candidate_idx=%d)\n", 
+            //      subchannel, rel15->CCE[candidate_idx], 
+            //      rel15->CCE[candidate_idx], rel15->CCE[candidate_idx] + phy_data->nr_sl_pscch_pdu.subchannel_size - 1,
+            //      rel15->L[candidate_idx], candidate_idx);
+
             candidate_idx++;
-        } else {
-            LOG_I(NR_PHY,"[PSCCH_RX] ❌ SKIPPING subchannel %d: avoid self-interference (srcid=%d)\n", 
-                  subchannel, my_srcid);
-        }
+        } //else {
+        //     LOG_I(NR_PHY,"[PSCCH_RX] ❌ SKIPPING subchannel %d: avoid self-interference (srcid=%d)\n", 
+        //           subchannel, my_srcid);
+        // }
     }
     
     rel15->number_of_candidates = candidate_idx;
-    LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING CONFIGURED: srcid=%d, total_candidates=%d\n", 
-          my_srcid, rel15->number_of_candidates);
+    // LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING CONFIGURED: srcid=%d, total_candidates=%d\n", 
+    //       my_srcid, rel15->number_of_candidates);
  
     // Hold the channel estimates in frequency domain.
     int32_t pscch_est_size = ((((fp->symbols_per_slot*(fp->ofdm_symbol_size+LTE_CE_FILTER_LENGTH))+15)/16)*16);
