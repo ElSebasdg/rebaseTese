@@ -552,22 +552,24 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     NR_TDD_UL_DL_Pattern_t *tdd = &sl_mac->sl_TDD_config->pattern1;
     const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
     uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        
-    // Initialize sched_psfch for the first available UE
-    NR_SL_UE_info_t *sl_ue = get_first_sl_ue_local(mac);
-    if (sl_ue != NULL) {
-      sl_ue->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-      if (sl_ue->UE_sched_ctrl.sched_psfch) {
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        LOG_I(NR_MAC, "[SL_INIT] Initialized sched_psfch for UE uid=%d\n", sl_ue->uid);
+    
+    // Initialize sched_psfch for ALL UEs in the list (support multiple connections)
+    int initialized_ues = 0;
+    for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+      if (mac->sl_info.list[ue_idx] != NULL) {
+        mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch = 
+            calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
+        if (mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch) {
+          mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
+          mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
+          initialized_ues++;
+          LOG_I(NR_MAC, "[SL_INIT] ✅ Sync ref: Initialized sched_psfch for UE[%d] uid=%d\n", 
+                ue_idx, mac->sl_info.list[ue_idx]->uid);
+        }
       }
-    } else {
-      LOG_E(NR_MAC, "[SL_ERROR] No SL UE available for sched_psfch initialization!\n");
     }
+    LOG_I(NR_MAC, "[SL_INIT] Sync ref: Initialized PSFCH for %d/%d UEs\n", 
+          initialized_ues, CUR_SL_UE_CONNECTIONS);
 
     int nr_slots_period = nr_slots_frame;
     int nr_ulstart_slot = 0;
@@ -781,22 +783,24 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
 
     const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
     uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
     
-    // Initialize sched_psfch for the first available UE
-    NR_SL_UE_info_t *sl_ue = get_first_sl_ue_local(mac);
-    if (sl_ue != NULL) {
-      sl_ue->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-      if (sl_ue->UE_sched_ctrl.sched_psfch) {
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        LOG_I(NR_MAC, "[SL_INIT] Initialized sched_psfch for nearby UE uid=%d\n", sl_ue->uid);
+    // Initialize sched_psfch for ALL UEs in the list (support multiple connections)
+    int initialized_ues = 0;
+    for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+      if (mac->sl_info.list[ue_idx] != NULL) {
+        mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch = 
+            calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
+        if (mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch) {
+          mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
+          mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
+          initialized_ues++;
+          LOG_I(NR_MAC, "[SL_INIT] ✅ Nearby UE: Initialized sched_psfch for UE[%d] uid=%d\n", 
+                ue_idx, mac->sl_info.list[ue_idx]->uid);
+        }
       }
-    } else {
-      LOG_E(NR_MAC, "[SL_ERROR] No SL UE available for sched_psfch initialization (nearby UE)!\n");
     }
+    LOG_I(NR_MAC, "[SL_INIT] Nearby UE: Initialized PSFCH for %d/%d UEs\n", 
+          initialized_ues, CUR_SL_UE_CONNECTIONS);
 
     LOG_I(MAC, "SIDELINK CONFIGs: tdd config period:%d, mu:%ld, DLslots:%ld,ULslots:%ld Mixedslotsym DL:UL %ld:%ld\n",
                             sl_config->tdd_table.tdd_period, sl_mac->sl_TDD_config->referenceSubcarrierSpacing,
