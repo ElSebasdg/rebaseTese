@@ -29,7 +29,6 @@
 #include "common/utils/utils.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
 #include "intertask_interface.h"
 #include "T.h"
 #include "PHY/MODULATION/modulation_UE.h"
@@ -240,25 +239,9 @@ int nr_slsch_procedures(PHY_VARS_NR_UE *ue, int frame_rx, int slot_rx, int SLSCH
   pusch_pdu.maintenance_parms_v3.tbSizeLbrmBytes=slsch_pdu->tbslbrm>>3;
 
   LOG_D(NR_PHY, "%4d.%2d Calling nr_ulsch_decoding\n", frame_rx, slot_rx);
-  
-  // 🔍 PHY RX FORENSICS: Log before decoding
-  LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍 BEFORE ULSCH DECODE: frame=%d.%d, SLSCH_id=%d, UE=%d \n", 
-        frame_rx, slot_rx, SLSCH_id, ue->Mod_id);
-  LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍   HARQ_PID=%d, G=%d, tbs=%d \n", 
-        harq_pid, G, slsch_pdu->tb_size);
-        
   int nbDecode =
       nr_ulsch_decoding(NULL, ue, SLSCH_id, ue->pssch_vars[SLSCH_id].llr, fp, &pusch_pdu, frame_rx, slot_rx, harq_pid, G, proc, phy_data, ack_nack_rcvd, num_acks);
-      
-  // 🔍 PHY RX FORENSICS: Log after decoding
-  LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍 AFTER ULSCH DECODE: frame=%d.%d, nbDecode=%d \n", 
-        frame_rx, slot_rx, nbDecode);
-  if (ue->slsch[SLSCH_id].harq_process && ue->slsch[SLSCH_id].harq_process->b) {
-    uint8_t *decoded_pdu = (uint8_t*)ue->slsch[SLSCH_id].harq_process->b;
-    LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍   DECODED PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
-          (decoded_pdu[0] >> 4) & 0xF, (decoded_pdu[0] >> 3) & 0x1, decoded_pdu[1], decoded_pdu[2]);
-  }
-  
+  return nbDecode;
 }
 
 void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_proc_t *proc,nr_phy_data_t *phy_data, int8_t *ack_nack_rcvd, uint8_t num_acks)
@@ -590,53 +573,13 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
 
-    // Set up selective blind decoding based on srcid
-    NR_UE_MAC_INST_t *mac = get_mac_inst(ue->Mod_id);
-    int my_srcid = (mac != NULL) ? mac->src_id : ue->Mod_id; // fallback to Mod_id if MAC not available
-    
+    rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.l_subch;
     rel15->num_dci_options = 1;
     rel15->dci_length_options[0] = phy_data->nr_sl_pscch_pdu.sci_1a_length;
-    
-    // 🎯 SELECTIVE SENSING LOGIC:
-    // - srcid=0 (sync ref): blind decode subchannels 1 and 2 (avoid self-interference)
-    // - srcid=1,2: blind decode subchannel 0 (sense sync ref)
-    int candidate_idx = 0;
-    
-    //LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING: my_srcid=%d, total_subchannels=%d\n", 
-          // my_srcid, phy_data->nr_sl_pscch_pdu.num_subch);
-    
-    for (int subchannel = 0; subchannel < phy_data->nr_sl_pscch_pdu.num_subch; subchannel++) {
-        bool should_sense_subchannel = false;
-        
-        if (my_srcid == 0) {
-            // Sync ref: sense subchannels 1 and 2 (not own subchannel 0)
-            should_sense_subchannel = (subchannel == 1 || subchannel == 2);
-        } else {
-            // Normal UEs (srcid 1,2): sense subchannel 0 (sync ref)
-            should_sense_subchannel = (subchannel == 0);
-        }
-        
-        if (should_sense_subchannel) {
-            // L provides the number of PRBs used by PSCCH
-            rel15->L[candidate_idx] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
-            // CCE provides the offset of the candidate of PSCCH in RBs (subchannel start position)
-            rel15->CCE[candidate_idx] = subchannel * phy_data->nr_sl_pscch_pdu.subchannel_size;
-
-            //LOG_I(NR_PHY,"[PSCCH_RX] ✅ SENSING subchannel %d: CCE=%d (PRBs %d-%d), L=%d (candidate_idx=%d)\n", 
-            //      subchannel, rel15->CCE[candidate_idx], 
-            //      rel15->CCE[candidate_idx], rel15->CCE[candidate_idx] + phy_data->nr_sl_pscch_pdu.subchannel_size - 1,
-            //      rel15->L[candidate_idx], candidate_idx);
-
-            candidate_idx++;
-        } //else {
-        //     LOG_I(NR_PHY,"[PSCCH_RX] ❌ SKIPPING subchannel %d: avoid self-interference (srcid=%d)\n", 
-        //           subchannel, my_srcid);
-        // }
-    }
-    
-    rel15->number_of_candidates = candidate_idx;
-    // LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING CONFIGURED: srcid=%d, total_candidates=%d\n", 
-    //       my_srcid, rel15->number_of_candidates);
+    // L now provides the number of PRBs used by PSCCH instead of the number of CCEs
+    rel15->L[0] = phy_data->nr_sl_pscch_pdu.pscch_numrbs * phy_data->nr_sl_pscch_pdu.pscch_numsym;
+    // This provides the offset of the candidate of PSCCH in RBs instead of CCEs
+    rel15->CCE[0] = 0;
  
     // Hold the channel estimates in frequency domain.
     int32_t pscch_est_size = ((((fp->symbols_per_slot*(fp->ofdm_symbol_size+LTE_CE_FILTER_LENGTH))+15)/16)*16);
@@ -725,15 +668,7 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
                 0,
                 &is_csi_rs_slot);
     if (phy_data->sl_rx_action == SL_NR_CONFIG_TYPE_RX_PSSCH_SLSCH_PSFCH) {
-            // FIXED: More permissive allocation - don't restrict to 32 limit for normal operation
-      if (phy_data->num_psfch_pdus > 0) {
-        ack_nack_rcvd = calloc(phy_data->num_psfch_pdus, sizeof(int8_t));
-        if (ack_nack_rcvd == NULL) {
-          LOG_E(NR_PHY, "Failed to allocate memory for ack_nack_rcvd (num_psfch_pdus=%d)\n", phy_data->num_psfch_pdus);
-        }
-      } else {
-        ack_nack_rcvd = NULL;
-      }  
+      ack_nack_rcvd = calloc(phy_data->num_psfch_pdus, sizeof(ack_nack_rcvd));
       LOG_D(NR_PHY, "num_psfch_pdus: %d\n", phy_data->num_psfch_pdus);
       for (int k = 0; k < phy_data->num_psfch_pdus; k++) {
         sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu = &phy_data->psfch_pdu_list[k];
@@ -804,12 +739,6 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
   //VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PHY_PROCEDURES_UE_TX_SL, VCD_FUNCTION_OUT);
   stop_meas(&sl_phy_params->phy_proc_sl_tx);
 
-  // FIXED: Free allocated memory for ack_nack_rcvd before returning
-  if (ack_nack_rcvd != NULL) {
-    free(ack_nack_rcvd);
-    ack_nack_rcvd = NULL;
-  }
-
   return;
 }
 int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
@@ -854,25 +783,6 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH) {
     if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS)
       LOG_D(NR_PHY, "(%d.%d) Sending %s\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH]);
-
-        // 🔍 PHY TX FORENSICS: Verify PDU before transmission
-    if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
-      uint8_t *pdu_ptr = (uint8_t*)phy_data->nr_sl_pssch_pscch_pdu.slsch_payload;
-      LOG_I(NR_PHY, "[PHY_TX_FORENSICS] 🔍 BEFORE RF TX: frame=%d.%d, UE=%d \n", frame_tx, slot_tx, ue->Mod_id);
-      LOG_I(NR_PHY, "[PHY_TX_FORENSICS] 🔍   PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
-            (pdu_ptr[0] >> 4) & 0xF, (pdu_ptr[0] >> 3) & 0x1, pdu_ptr[1], pdu_ptr[2]);
-      LOG_I(NR_PHY, "[PHY_TX_FORENSICS] 🔍   PDU size=%d, payload_ptr=0x%lx \n", 
-            phy_data->nr_sl_pssch_pscch_pdu.tb_size, (unsigned long)pdu_ptr);
-      
-      // 🔍 CRITICAL TX TRACKING: Log what this UE is transmitting
-      LOG_W(NR_PHY, "[TX_TRACKING] 📤 UE%d TRANSMITTING: srcid=%d→dstid=%d, frame=%d.%d\n",
-            pdu_ptr[1], pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
-      LOG_W(NR_PHY, "[TX_TRACKING] 📤   PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n",
-            phy_data->nr_sl_pssch_pscch_pdu.startrb, 
-            phy_data->nr_sl_pssch_pscch_pdu.l_subch,
-            phy_data->nr_sl_pssch_pscch_pdu.startrb / 25);  // Assuming 25 PRBs per subchannel
-    }
-
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;
     nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *csi_params = (nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *)&phy_data->nr_sl_pssch_pscch_pdu.nr_sl_csi_rs_pdu;
     csi_params->scramb_id = phy_data->pscch_Nid % (1 << 10);

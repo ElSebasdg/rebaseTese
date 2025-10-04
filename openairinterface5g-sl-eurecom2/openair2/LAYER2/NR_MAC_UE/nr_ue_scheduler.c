@@ -85,7 +85,6 @@ static void print_sensing_data_list(List_t *sensing_data, int line) {
   }
 }
 
-
 sl_resource_info_t* get_resource_element(List_t* resource_list, frameslot_t sfn) {
   for (int i = 0; i < resource_list->size; i++) {
     sl_resource_info_t *itr_rsrc = (sl_resource_info_t*)((char*)resource_list->data + i * resource_list->element_size);
@@ -3203,25 +3202,15 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
 {
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
-  if (mac == NULL) {
-    LOG_E(NR_MAC, "[SL_ERROR] sl_adjust_indices_based_on_timing: mac is NULL for mod_id=%d!\n", mod_id);
-    return;
-  }
-
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
-  if (sl_mac == NULL) {
-    LOG_E(NR_MAC, "[SL_ERROR] sl_adjust_indices_based_on_timing: SL_MAC_PARAMS is NULL for mod_id=%d!\n", mod_id);
-    return;
-  }
 
   uint16_t frame_16 = frame % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_in_16frames = (frame_16 * slots_per_frame) + slot;
   uint16_t frame_tx_16 = frame_tx % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_tx_in_16frames = (frame_tx_16 * slots_per_frame) + slot_tx;
-  
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame, slot, frame_16, slot_in_16frames);
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame_tx, slot_tx, frame_tx_16, slot_tx_in_16frames);
 
   //Adjust PSBCH Indices based on current RX timing
@@ -3232,10 +3221,10 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
   ssb_timealloc = &sl_mac->tx_sl_bch.ssb_time_alloc;
   sl_mac->tx_sl_bch.num_ssb = sl_adjust_ssb_indices(ssb_timealloc, slot_tx_in_16frames, &sl_mac->tx_sl_bch.ssb_slot);
 
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on RX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
                                                             mod_id, frame, slot, sl_mac->rx_sl_bch.num_ssb,
                                                             sl_mac->rx_sl_bch.ssb_slot);
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on TX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
                                                             mod_id, frame_tx, slot_tx, sl_mac->tx_sl_bch.num_ssb,
                                                             sl_mac->tx_sl_bch.ssb_slot);
 
@@ -3298,21 +3287,14 @@ uint8_t sl_determine_if_SSB_slot(uint16_t frame, uint16_t slot, uint16_t slots_p
 
 static void nr_store_slsch_buffer(NR_UE_MAC_INST_t *mac, frame_t frame, sub_frame_t slot) {
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
-    if (mac->sl_info.list[i] == NULL) continue;
-    
-    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
-    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
-    if (!UE->UE_sched_ctrl.sched_psfch) {
-      continue;
-    }
-
+  NR_SL_UEs_t *UE_info = &mac->sl_info;
+  SL_UE_iterator(UE_info->list, UE) {
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     sched_ctrl->num_total_bytes = 0;
     sched_ctrl->sl_pdus_total = 0;
 
     const int lcid = 4;
-    sched_ctrl->rlc_status[lcid] = mac_rlc_status_ind(0, mac->src_id, 0, frame, slot, ENB_FLAG_NO, MBMS_FLAG_NO, 4, mac->src_id, UE->uid);
+    sched_ctrl->rlc_status[lcid] = mac_rlc_status_ind(0, mac->src_id, 0, frame, slot, ENB_FLAG_NO, MBMS_FLAG_NO, 4, 0, 0);
 
     if (sched_ctrl->rlc_status[lcid].bytes_in_buffer == 0)
         continue;
@@ -3372,15 +3354,8 @@ void preprocess(NR_UE_MAC_INST_t *mac,
   int scs = sl_mac->sl_phy_config.sl_config_req.sl_bwp_config.sl_scs;
   const int nr_slots_frame = nr_slots_per_frame[scs];
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
-    if (mac->sl_info.list[i] == NULL) continue;
-    
-    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
-    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
-    if (!UE->UE_sched_ctrl.sched_psfch) {
-      continue;
-    }
-
+  NR_SL_UEs_t *UE_info = &mac->sl_info;
+  SL_UE_iterator(UE_info->list, UE) {
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     UE->mac_sl_stats.sl.current_bytes = 0;
     UE->mac_sl_stats.sl.current_rbs = 0;
@@ -3470,65 +3445,17 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   }
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
-  if (slot > 9 && get_nrUE_params()->sync_ref) {
-    LOG_D(NR_MAC, "[SYNC_REF_TX] ❌ Sync ref cannot transmit in slot %d (> 9)\n", slot);
-    return is_resource_allocated;
-  }
+  if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
 
-  if (slot < 10 && !get_nrUE_params()->sync_ref) {
-    LOG_D(NR_MAC, "[UE_TX] ❌ Normal UE cannot transmit in slot %d (< 10)\n", slot);
-    return is_resource_allocated;
-  }
+  if (slot < 10 && !get_nrUE_params()->sync_ref) return is_resource_allocated;
 
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         sl_ind->module_id, frame, slot,sl_ind->slot_type);
-  
-  if (get_nrUE_params()->sync_ref && (slot >= 6 && slot <= 9)) {
-    LOG_I(NR_MAC, "[SYNC_REF_TX] ✅ Sync ref in valid TX slot %d (allowed: 6-9)\n", slot);
-  } else if (!get_nrUE_params()->sync_ref && (slot >= 16 && slot <= 19)) {
-    LOG_I(NR_MAC, "[UE_TX] ✅ Normal UE in valid TX slot %d (allowed: 16-19)\n", slot);
-  }
-
-    // 🔍 DEEP ANALYSIS: Log UE list state at function entry
-  LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 nr_ue_sl_pssch_scheduler ENTRY: frame=%d.%d, local_srcid=%d\n", 
-        frame, slot, mac->src_id);
-  int active_ues = 0;
-  for (int debug_i = 0; debug_i < CUR_SL_UE_CONNECTIONS; debug_i++) {
-    if (mac->sl_info.list[debug_i] != NULL) {
-      active_ues++;
-      LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋   slot[%d]: UE uid=%d, sched_psfch=%s\n", 
-            debug_i, mac->sl_info.list[debug_i]->uid,
-            mac->sl_info.list[debug_i]->UE_sched_ctrl.sched_psfch ? "YES" : "NO");
-    }
-  }
-  LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 Total active UEs: %d/%d\n", active_ues, CUR_SL_UE_CONNECTIONS);
-
-
 
   uint16_t slsch_pdu_length_max;
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
 
   NR_SL_UEs_t *UE_info = &mac->sl_info;
-
-  // SYNC REF ENHANCEMENT: Force transmission with dummy data if sync_ref and no active UEs
-  if (get_nrUE_params()->sync_ref && (*(UE_info->list) == NULL || active_ues == 0)) {
-    // Create a dummy UE entry for sync ref to have something to transmit
-    static bool dummy_ue_created = false;
-    if (!dummy_ue_created && (slot >= 6 && slot <= 9)) {
-      LOG_I(NR_MAC, "[SYNC_REF_TX] 📡 Creating dummy transmission data for sync ref in slot %d\n", slot);
-      
-      // Add a minimal dummy payload to force transmission - slsch_payload is a fixed array
-      memset(mac->slsch_payload, 0, sizeof(mac->slsch_payload));
-      sprintf((char*)mac->slsch_payload, "SYNC_REF_DUMMY_DATA_FRAME_%d_SLOT_%d", frame, slot);
-      
-      // Ensure there's at least minimal data to transmit
-      tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
-      tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload_length = 32;
-      
-      LOG_I(NR_MAC, "[SYNC_REF_TX] 📡 Forcing sync ref transmission with dummy data\n");
-      dummy_ue_created = true;
-    }
-  }
 
   if (*(UE_info->list) == NULL) {
     LOG_D(NR_MAC, "UE list is empty\n");
@@ -3537,18 +3464,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
 
   preprocess(mac, frame, slot, &feedback_frame, &feedback_slot, sl_bwp, configured_PSFCH);
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
-    if (mac->sl_info.list[i] == NULL) continue;
-    
-    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
-    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
-    if (!UE->UE_sched_ctrl.sched_psfch) {
-      continue;
-    }
-
-    LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d)\n", 
-          i, UE->uid, mac->src_id);
-
+  SL_UE_iterator(UE_info->list, UE) {
     NR_mac_dir_stats_t *sl_mac_stats = &UE->mac_sl_stats.sl;
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     sl_mac_stats->current_bytes = 0;
@@ -3596,17 +3512,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     */
     cur_harq->ndi ^= 1;
 
-    // 🔍 DEEP ANALYSIS: Log before calling nr_schedule_slsch
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞 CALLING nr_schedule_slsch: frame=%d.%d\n", frame, slot);
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞   local_srcid=%d, target_UE->uid=%d\n", mac->src_id, UE->uid);
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞   This will set dest_id=%d in sci2_pdu\n", UE->uid);
-
     nr_schedule_slsch(mac, frame, slot, &mac->sci1_pdu, &mac->sci2_pdu, NR_SL_SCI_FORMAT_2A,
                       UE, &slsch_pdu_length_max, cur_harq, &sched_ctrl->rlc_status[lcid], resource);
-
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞 AFTER nr_schedule_slsch: sci2_pdu configured\n");
-    LOG_I(NR_MAC, "[CALL_ANALYSIS] 📞   sci2_pdu.source_id=%d, sci2_pdu.dest_id=%d\n", 
-          mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
 
     *config_type = SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH;
     tx_config->number_pdus = 1;
@@ -3684,42 +3591,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       sl_sch_subheader->R = 0;
       sl_sch_subheader->SRC = mac->sci2_pdu.source_id;
       sl_sch_subheader->DST = mac->sci2_pdu.dest_id;
-
-        
-      // 🔍 DEEP ANALYSIS: Log detailed transmission information
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡 CREATING TRANSMISSION PDU: frame=%d.%d, local_srcid=%d\n", frame, slot, mac->src_id);
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   SCI2_PDU: source_id=%d, dest_id=%d\n", mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   PDU_HEADER: SRC=%d, DST=%d\n", sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      
-      // 🚨 CRITICAL DEBUG: Final PDU verification before RF transmission
-      LOG_I(NR_MAC, "[PDU_PRE_RF] 📤 FINAL VERIFICATION: frame=%d.%d, srcid=%d", frame, slot, mac->src_id);
-      LOG_I(NR_MAC, "[PDU_PRE_RF] 📤   MEMORY PDU_HEADER at %p: V=%d, R=%d, SRC=%d, DST=%d", 
-            sl_sch_subheader, sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   UE->uid=%d (this is the target UE we're transmitting to)\n", UE->uid);
-      
-      if (mac->sci2_pdu.source_id == mac->sci2_pdu.dest_id) {
-        LOG_E(NR_MAC, "[TX_ANALYSIS] 🚨 SELF-TRANSMISSION DETECTED! srcid=%d transmitting to itself!\n", mac->src_id);
-        LOG_E(NR_MAC, "[TX_ANALYSIS] 🚨   This should NOT happen - investigating root cause...\n");
-      }
-      
-      // 🔍 CRITICAL: Log header before PDU pointer advancement
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
-            pdu, cur_harq->transportBlock);
-      
       pdu += sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
-      
-      // 🔍 CRITICAL: Log header after PDU pointer advancement  
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
-            pdu, cur_harq->transportBlock);
-
-
-
       LOG_D(NR_MAC, "%4d.%2d Tx V %d, R %d, SRC %d, DST %d\n", frame, slot, sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
       buflen_remain -= sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
       LOG_D(NR_MAC, "buflen_remain after adding SL_SCH_MAC_SUBHEADER_FIXED %d\n", buflen_remain);
@@ -3865,72 +3737,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     } // end of initial transmission
 
     const uint32_t TBS = pscch_pssch_pdu->tb_size;
-
-        // 🔧 DEFINITIVE FIX: Force correct PDU header RIGHT BEFORE memcpy to prevent corruption
-    if (cur_harq->transportBlock) {
-      NR_SLSCH_MAC_SUBHEADER_FIXED *fix_header = (NR_SLSCH_MAC_SUBHEADER_FIXED *)cur_harq->transportBlock;
-      
-      // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧 FORCING CORRECT HEADER: frame=%d.%d\n", frame, slot);
-      // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧   BEFORE_FIX: V=%d, R=%d, SRC=%d, DST=%d\n", 
-      //       fix_header->V, fix_header->R, fix_header->SRC, fix_header->DST);
-            
-      // 🔧 FORCE CORRECT HEADER VALUES - This prevents the self-loopback issue!
-      fix_header->V = 0;
-      fix_header->R = 0;  
-      fix_header->SRC = mac->sci2_pdu.source_id;  // Should be 0
-      fix_header->DST = mac->sci2_pdu.dest_id;    // Should be 1 (NOT 0!)
-      
-      // LOG_I(NR_MAC, "[DEFINITIVE_FIX] 🔧   AFTER_FIX: V=%d, R=%d, SRC=%d, DST=%d\n", 
-      //       fix_header->V, fix_header->R, fix_header->SRC, fix_header->DST);
-    }
-    
-
     memcpy(pscch_pssch_pdu->slsch_payload, cur_harq->transportBlock, TBS);
-   
-
-    // 🔍 IMMEDIATE VERIFICATION RIGHT AFTER MEMCPY
-    // LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍 IMMEDIATE AFTER MEMCPY: \n");
-    if (pscch_pssch_pdu->slsch_payload) {
-      uint8_t *dest_ptr = (uint8_t*)pscch_pssch_pdu->slsch_payload;
-      // LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍   DEST_PDU_HEADER_IMMEDIATE: V=%d, R=%d, SRC=%d, DST=%d \n", 
-      //       (dest_ptr[0] >> 4) & 0xF, (dest_ptr[0] >> 3) & 0x1, dest_ptr[1], dest_ptr[2]);
-    }
-    
-    // 🚨 NUCLEAR OPTION: FORCE MEMORY BARRIERS & RAW BYTE ACCESS
-    if (pscch_pssch_pdu->slsch_payload) {
-      volatile uint8_t *dest_raw = (volatile uint8_t*)pscch_pssch_pdu->slsch_payload;
-      
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] � RAW BYTE MANIPULATION: frame=%d.%d\n", frame, slot);
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] �   RAW_BEFORE: byte[0]=0x%02x, byte[1]=0x%02x, byte[2]=0x%02x\n", 
-      //       dest_raw[0], dest_raw[1], dest_raw[2]);
-            
-      // � NUCLEAR: Force correct header with raw byte manipulation + memory barriers
-      dest_raw[0] = 0x00;  // V=0, R=0, reserved bits
-      dest_raw[1] = mac->sci2_pdu.source_id;  // SRC field
-      dest_raw[2] = mac->sci2_pdu.dest_id;    // DST field - FORCE to correct value!
-      
-      // 🚨 MEMORY BARRIER: Force compiler to flush changes
-      __asm__ __volatile__ ("" ::: "memory");
-      
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] 🚀   RAW_AFTER: byte[0]=0x%02x, byte[1]=0x%02x, byte[2]=0x%02x\n", 
-      //       dest_raw[0], dest_raw[1], dest_raw[2]);
-            
-      // 🔍 VERIFY BOTH STRUCT AND RAW ACCESS
-      NR_SLSCH_MAC_SUBHEADER_FIXED *dest_struct = (NR_SLSCH_MAC_SUBHEADER_FIXED *)pscch_pssch_pdu->slsch_payload;
-      // LOG_I(NR_MAC, "[NUCLEAR_FIX] �   STRUCT_AFTER: V=%d, R=%d, SRC=%d, DST=%d\n", 
-      //       dest_struct->V, dest_struct->R, dest_struct->SRC, dest_struct->DST);
-    }
-    
-    // 🔍 FINAL VERIFICATION
-    LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍 FINAL VERIFICATION: \n");
-    if (pscch_pssch_pdu->slsch_payload) {
-      uint8_t *dest_ptr = (uint8_t*)pscch_pssch_pdu->slsch_payload;
-      LOG_I(NR_MAC, "[MEMORY_COPY_FORENSICS] 🔍   DEST_PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
-            (dest_ptr[0] >> 4) & 0xF, (dest_ptr[0] >> 3) & 0x1, dest_ptr[1], dest_ptr[2]);
-    }
-    
-   
-   
     // mark UE as scheduled
     sched_pssch->rbSize = 0;
     is_resource_allocated = true;
@@ -3955,8 +3762,7 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
                        sl_res_pool,
                        sl_has_psfch);
 
-   LOG_I(NR_MAC, "[PSCCH_SCHEDULER] 📡 UE%d SCHEDULING PSCCH RX: frame=%d.%d, slot_type=%d\n", 
-         sl_ind->module_id, sl_ind->frame_rx, sl_ind->slot_rx, sl_ind->slot_type);
+
    LOG_D(NR_MAC, "[UE%d] TTI-%d:%d RX PSCCH REQ \n", sl_ind->module_id,sl_ind->frame_rx, sl_ind->slot_rx);
 
 }
@@ -4082,42 +3888,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   }
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
-  if (mac == NULL) {
-    LOG_E(NR_MAC, "[SL_ERROR] nr_ue_sidelink_scheduler: mac is NULL for mod_id=%d!\n", mod_id);
-    return;
-  }
-
-  // Debug connected UEs status (reduced frequency)
-  static int debug_counter = 0;
-  if (debug_counter++ % 500 == 0) { // Print every 500 calls to avoid spam
-    //LOG_I(NR_MAC, "[SL_DEBUG] Sidelink scheduler called for mod_id=%d, frame=%d, slot=%d\n", mod_id, frame, slot);
-    int connected_count = 0;
-    int active_count = 0;
-    for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
-      if (mac->sl_info.list[i] != NULL) {
-        connected_count++;
-        // Check if UE has any HARQ activity
-        bool has_activity = (mac->sl_info.list[i]->UE_sched_ctrl.available_sl_harq.len < 16) ||
-                            (mac->sl_info.list[i]->UE_sched_ctrl.feedback_sl_harq.len > 0) ||
-                            (mac->sl_info.list[i]->UE_sched_ctrl.retrans_sl_harq.len > 0);
-        if (has_activity) {
-          active_count++;
-          //LOG_I(NR_MAC, "  ACTIVE UE[%d] uid=%d\n", i, mac->sl_info.list[i]->uid);
-        }
-      }
-    }
-    //LOG_I(NR_MAC, "  Total UEs: allocated=%d, active=%d\n", connected_count, active_count);
-
-    // Show PSFCH configuration status
-    if (mac->sl_tx_res_pool && mac->sl_tx_res_pool->sl_PSFCH_Config_r16 &&
-        mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup &&
-        mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16) {
-      uint8_t psfch_period = *mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16;
-      //LOG_I(NR_MAC, "  PSFCH Period = %d (enabled)\n", psfch_period);
-    } else {
-      //LOG_W(NR_MAC, "  PSFCH is disabled or not configured!\n");
-    }
-  }
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
   sl_nr_phy_config_request_t *sl_cfg = &sl_mac->sl_phy_config.sl_config_req;
 
@@ -4160,7 +3930,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   frame_slot.frame = frame;
   frame_slot.slot = slot;
 
-  // resource selection and sensing only if not PSBCH slot
   sl_resource_info_t *resource = NULL;
   if (mac->sl_candidate_resources && mac->sl_candidate_resources->size > 0 && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     LOG_D(NR_MAC, "%4d.%2d sl_candidate_resources %p size %ld, capacity %ld slot_type %d\n", frame, slot, mac->sl_candidate_resources, mac->sl_candidate_resources->size, mac->sl_candidate_resources->capacity, sl_ind->slot_type);
@@ -4215,16 +3984,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      uint8_t mask = mac->sl_rx_res_pool->ext1->sl_TimeResource_r16->buf[slot_mod_period>>3];
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
-  if (sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) {
-    rx_allowed=false;
-  }
-  
-  // Debug logging for slot access permissions
-  if ((frame % 10 == 0) && (slot < 5)) {  // Only log occasionally to avoid spam
-    LOG_I(NR_MAC, "[SLOT_ACCESS] UE%d frame=%d.%d: rx_allowed=%d, tx_allowed=%d, slot_type=%d\n", 
-          mac->src_id, frame, slot, rx_allowed, tx_allowed, sl_ind->slot_type);
-  }
-  
+  if (sl_ind->slot_type==SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) rx_allowed=false;
   static uint16_t prev_slot = 0;
   NR_SL_PSFCH_Config_r16_t *sl_psfch_config = mac->sl_tx_res_pool->sl_PSFCH_Config_r16 ? mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup : NULL;
   const uint8_t psfch_periods[] = {0,1,2,4};
@@ -4232,14 +3992,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
                       ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
 
   if ((prev_slot != slot) && rx_allowed && !is_psbch_slot) {
-      // Add safety checks before PSCCH RX scheduling
-      if (!sl_mac || !sl_mac->sl_RxPool[0] || !mac->sl_bwp || !mac->sl_rx_res_pool) {
-        LOG_E(NR_MAC, "[SAFETY_CHECK] UE%d frame=%d.%d: NULL pointer check failed - skipping PSCCH RX\n", 
-              mac->src_id, frame, slot);
-        prev_slot = slot;
-        return;
-      }
-      
       frameslot_t fs;
       fs.frame = frame;
       fs.slot = slot;
@@ -4253,19 +4005,8 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       prev_slot = slot;
   }
 
-
-  // log to check conditions before calling pssch scheduler
-  LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
-        frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
-    
-  // If sidelink resource pool is configured
-  // AND NOT a PSBCH slot
-  // AND TX is allowed in this slot
-  // AND slot type is TX
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
-    LOG_I(NR_MAC, "[PSSCH_SCHEDULER] 📤 UE%d SCHEDULING TX: frame=%d.%d, slot_type=%d\n", 
-          mac->src_id, frame, slot, sl_ind->slot_type);
     bool is_resource_allocated = nr_ue_sl_pssch_scheduler(mac, sl_ind, mac->sl_bwp, mac->sl_tx_res_pool, &tx_config, resource, &tti_action);
     if (is_resource_allocated && mac->sci2_pdu.csi_req) {
       nr_ue_sl_csi_rs_scheduler(mac, mu, mac->sl_bwp, &tx_config, NULL, &tti_action);
@@ -4339,22 +4080,15 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list = CALLOC(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
   sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu_list = tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list;
   int k = 0;
-
-
-  // FIXED: Check all UEs instead of just [0], with null checks
-  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
-    if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
-      continue;
-
-    for (int i = 0; i < (n_ul_slots_period * num_subch); i++) {
-      SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch[i];
-      LOG_D(NR_MAC,"UE %d frame.slot: feedback %4d.%2d, current (%4d.%2d)\n",
-            ue_idx, sched_psfch->feedback_frame, sched_psfch->feedback_slot, frame, slot);
-      if (sched_psfch->feedback_slot == slot && sched_psfch->feedback_frame == frame) {
-        sl_ind->slot_tx = sched_psfch->feedback_slot;
-        sl_ind->frame_tx = sched_psfch->feedback_frame;
-        sl_ind->slot_type = SIDELINK_SLOT_TYPE_TX;
-        AssertFatal(k < psfch_period*num_subch, "Number of PSFCH pdus cannot exceed %ld\n", psfch_period * num_subch);
+  for (int i = 0; i < (n_ul_slots_period * num_subch); i++) {
+    SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch[i];
+    LOG_D(NR_MAC,"frame.slot: feedback %4d.%2d, current (%4d.%2d)\n",
+          sched_psfch->feedback_frame, sched_psfch->feedback_slot, frame, slot);
+    if (sched_psfch->feedback_slot == slot && sched_psfch->feedback_frame == frame) {
+      sl_ind->slot_tx = sched_psfch->feedback_slot;
+      sl_ind->frame_tx = sched_psfch->feedback_frame;
+      sl_ind->slot_type = SIDELINK_SLOT_TYPE_TX;
+      AssertFatal(k < psfch_period*num_subch, "Number of PSFCH pdus cannot exceed %ld\n", psfch_period * num_subch);
       fill_psfch_pdu(sched_psfch, &psfch_pdu_list[k], num_psfch_symbols);
       *config_type = SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH;
       tx_config->number_pdus = 1;
@@ -4367,7 +4101,6 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
       sched_psfch->harq_feedback = -1;
       k++;
     }
-    } // end UE loop
   }
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.num_psfch_pdus = k;
 }
