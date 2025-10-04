@@ -3807,7 +3807,7 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
   //  comment is_psbch_rx_slot is true only if sync_source is SYNC_REF_UE and
   if (is_psbch_rx_slot) {
     LOG_W(NR_MAC, "is_psbch_rx_slot: %d, slot_type %d, rx_slss_id %d, sync_source %d\n",
-          is_psbch_rx_slot, sl_ind->slot_type, sl_cfg->sl_sync_source.rx_slss_id, get_nrUE_params()->sync_source);
+          is_psbch_rx_slot, sl_ind->slot_type, sl_cfg->sl_sync_source.rx_slss_id, get_nrUE_params()->sync_ref);
   }
 
 
@@ -3835,8 +3835,8 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
     
     if (is_psbch_tx_slot &&
         sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
-      LOG_W(NR_MAC, "is_psbch_tx_slot: %d, slot_type %d, tx_slss_id %d, sync_source %d\n",
-          is_psbch_tx_slot, sl_ind->slot_type, sl_cfg->sl_sync_source.tx_slss_id, get_nrUE_params()->sync_source);
+      LOG_W(NR_MAC, "is_psbch_tx_slot: %d, slot_type %d, sync_source %d\n",
+          is_psbch_tx_slot, sl_ind->slot_type, get_nrUE_params()->sync_ref);
       *config_type = SL_NR_CONFIG_TYPE_TX_PSBCH;
       tx_config->number_pdus = 1;
       tx_config->sfn = frame;
