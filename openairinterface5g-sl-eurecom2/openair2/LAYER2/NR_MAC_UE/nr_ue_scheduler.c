@@ -3796,12 +3796,20 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
   uint16_t scs = sl_cfg->sl_bwp_config.sl_scs;
   uint16_t slots_per_frame = nr_slots_per_frame[scs];
 
-  LOG_W(NR_MAC,"[UE%d] SL-PSBCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
+  LOG_D(NR_MAC,"[UE%d] SL-PSBCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
                                       sl_ind->module_id, frame, slot,sl_ind->slot_type);
 
   is_psbch_rx_slot = sl_determine_if_SSB_slot(frame, slot, slots_per_frame,
                                               &sl_mac_params->rx_sl_bch,
                                               sl_ind->slot_type);
+
+
+  //  comment is_psbch_rx_slot is true only if sync_source is SYNC_REF_UE and
+  if (is_psbch_rx_slot) {
+    LOG_W(NR_MAC, "is_psbch_rx_slot: %d, slot_type %d, rx_slss_id %d, sync_source %d\n",
+          is_psbch_rx_slot, sl_ind->slot_type, sl_cfg->sl_sync_source.rx_slss_id, get_nrUE_params()->sync_source);
+  }
+
 
   if (is_psbch_rx_slot &&
       sl_ind->slot_type == SIDELINK_SLOT_TYPE_RX) {
@@ -3824,10 +3832,11 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
     is_psbch_tx_slot = sl_determine_if_SSB_slot(frame, slot, slots_per_frame,
                                                 &sl_mac_params->tx_sl_bch,
                                                 sl_ind->slot_type);
-
+    
     if (is_psbch_tx_slot &&
         sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
-
+      LOG_W(NR_MAC, "is_psbch_tx_slot: %d, slot_type %d, tx_slss_id %d, sync_source %d\n",
+          is_psbch_tx_slot, sl_ind->slot_type, sl_cfg->sl_sync_source.tx_slss_id, get_nrUE_params()->sync_source);
       *config_type = SL_NR_CONFIG_TYPE_TX_PSBCH;
       tx_config->number_pdus = 1;
       tx_config->sfn = frame;
@@ -3914,9 +3923,12 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   memset(&scheduled_response,0, sizeof(nr_scheduled_response_t));
 
   uint8_t tti_action = 0, is_psbch_slot = 0;
-
   // Check if PSBCH slot and PSBCH should be transmitted or Received
   is_psbch_slot = nr_ue_sl_psbch_scheduler(sl_ind, sl_mac, &rx_config, &tx_config, &tti_action);
+  if (is_psbch_slot) {
+    LOG_D(NR_MAC,"[UE%d] SL-PSBCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
+                                      sl_ind->module_id, frame, slot,sl_ind->slot_type);
+  }
 
   bool tx_allowed=true,rx_allowed=true;
   if (mac->sl_tx_res_pool && mac->sl_tx_res_pool->ext1 && mac->sl_tx_res_pool->ext1->sl_TimeResource_r16) {
