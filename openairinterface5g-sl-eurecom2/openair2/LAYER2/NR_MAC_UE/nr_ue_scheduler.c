@@ -3796,7 +3796,7 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
   uint16_t scs = sl_cfg->sl_bwp_config.sl_scs;
   uint16_t slots_per_frame = nr_slots_per_frame[scs];
 
-  LOG_D(NR_MAC,"[UE%d] SL-PSBCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
+  LOG_W(NR_MAC,"[UE%d] SL-PSBCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
                                       sl_ind->module_id, frame, slot,sl_ind->slot_type);
 
   is_psbch_rx_slot = sl_determine_if_SSB_slot(frame, slot, slots_per_frame,
