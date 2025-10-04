@@ -547,6 +547,18 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     sl_mac->sl_TDD_config = NULL;
   }
   if (get_nrUE_params()->sync_ref) {
+    // ⚠️ CRITICAL: Set sync reference UE as synchronized immediately
+    // The sync ref is the SOURCE of synchronization, not a receiver
+    // It must be able to transmit PSBCH and data without waiting for other UEs
+    LOG_I(NR_MAC, "[SYNC_REF_INIT] 🔧 BEFORE setting is_synced: mac=%p, is_synced=%d, src_id=%d\n", 
+          mac, mac->is_synced, mac->src_id);
+    
+    mac->is_synced = true;
+    
+    LOG_I(NR_MAC, "[SYNC_REF_INIT] ✅ AFTER setting is_synced: mac=%p, is_synced=%d, src_id=%d\n", 
+          mac, mac->is_synced, mac->src_id);
+    LOG_I(NR_MAC, "[SYNC_REF_INIT] 📍 Location: config_ue_sl.c line ~553 in nr_rrc_mac_config_req_sl_preconfig()\n");
+    
     int scs = get_softmodem_params()->numerology;
     const int nr_slots_frame = nr_slots_per_frame[scs];
     NR_TDD_UL_DL_Pattern_t *tdd = &sl_mac->sl_TDD_config->pattern1;

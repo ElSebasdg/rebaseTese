@@ -666,9 +666,20 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
   if (mac->sl_sensing_data.size > 1)
     remove_old_sensing_data(&sensing_data.frame_slot, sl_mac->sl_RxPool[0]->t0, &mac->sl_sensing_data, sl_mac);
 
+  LOG_E(NR_MAC,"UE%d Sensing data: frame %d, slot %d, rsrp %d, rsvp %d, subch_start %d, subch_len %d\n",
+         mod_id,
+         sensing_data.frame_slot.frame,
+         sensing_data.frame_slot.slot,
+         sensing_data.sl_rsrp,
+         sensing_data.rsvp,
+         sensing_data.subch_start,
+         sensing_data.subch_len);
+
   if (sci_pdu->reserved.val && !mac->is_synced) {
+    LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 Setting is_synced=true via SCI reserved bit\n");
+    LOG_I(NR_MAC, "[SYNC_DEBUG] 📍 Location: nr_ue_sci_slsch.c line ~679, src_id=%d\n", mac->src_id);
     mac->is_synced = true;
-    LOG_I(NR_PHY, "Nearby UE is synced now!!!\n");
+    LOG_I(NR_PHY, "[SYNC_DEBUG] ✅ Nearby UE is synced now!!! is_synced=%d\n", mac->is_synced);
   }
   LOG_D(NR_MAC,"SCI1A: frequency_resource %d, time_resource %d, dmrs_pattern %d, beta_offset_indicator %d, mcs %d, number_of_dmrs_port %d, 2nd stage SCI format %d\n",
         sci_pdu->frequency_resource_assignment.val,sci_pdu->time_resource_assignment.val,sci_pdu->dmrs_pattern.val,sci_pdu->beta_offset_indicator,sci_pdu->mcs,sci_pdu->number_of_dmrs_port,sci_pdu->second_stage_sci_format);

@@ -4263,6 +4263,12 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   }
 
 
+  // 🔍 DEBUG: Log is_synced state for sync ref debugging
+  if (get_nrUE_params()->sync_ref) {
+    LOG_I(NR_MAC, "[SYNC_REF_DEBUG] 🔍 Frame %d.%d - is_synced=%d, src_id=%d\n", 
+          frame, slot, mac->is_synced, mac->src_id);
+  }
+
   // log to check conditions before calling pssch scheduler
   LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
         frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
