@@ -162,10 +162,6 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
 {
   LOG_I(NR_MAC, "[UE%d] Applying default macMainConfig\n", module_idP);
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_idP);
-  
-  LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 nr_ue_init_mac() ENTRY: mac=%p, is_synced=%d\n", 
-        mac, mac->is_synced);
-  
   nr_ue_mac_default_configs(mac);
   mac->first_sync_frame = -1;
   mac->get_sib1 = false;
@@ -188,13 +184,9 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
 
   AssertFatal((get_nrUE_params()->mcs >= 0 && get_nrUE_params()->mcs <= 28), "MCS must be 1 to 28!!!");
   
-  LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 Before memset: is_synced=%d\n", mac->is_synced);
-  
   // Initialize the sl_info structure
   memset(&mac->sl_info, 0, sizeof(NR_SL_UEs_t));
   pthread_mutex_init(&mac->sl_info.mutex, NULL);
-  
-  LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 After memset: is_synced=%d (memset does NOT touch is_synced)\n", mac->is_synced);
   
   LOG_I(NR_MAC, "[SL_INIT] === INITIALIZING SL UE LIST === src_id=%d, max_connections=%d\n", mac->src_id, CUR_SL_UE_CONNECTIONS);
   

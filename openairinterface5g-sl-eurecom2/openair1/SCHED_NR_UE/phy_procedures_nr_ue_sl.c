@@ -29,7 +29,6 @@
 #include "common/utils/utils.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
 #include "intertask_interface.h"
 #include "T.h"
 #include "PHY/MODULATION/modulation_UE.h"
@@ -590,7 +589,12 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
 
-    // Set up selective blind decoding based on srcid
+
+
+
+    // Determine UE's own subchannel to exclude it from blind decoding
+
+     // Set up selective blind decoding based on srcid
     NR_UE_MAC_INST_t *mac = get_mac_inst(ue->Mod_id);
     int my_srcid = (mac != NULL) ? mac->src_id : ue->Mod_id; // fallback to Mod_id if MAC not available
     
@@ -633,10 +637,12 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
                   subchannel, my_srcid);
         }
     }
-    
+
     rel15->number_of_candidates = candidate_idx;
     LOG_I(NR_PHY,"[PSCCH_RX] 🎯 SELECTIVE SENSING CONFIGURED: srcid=%d, total_candidates=%d\n", 
           my_srcid, rel15->number_of_candidates);
+    LOG_I(NR_PHY,"[PSCCH_RX] 🔍 UE%d BLIND DECODING: frame=%d.%d, scanning %d subchannels (excluding own subchannel %d)\n", 
+          ue->Mod_id, frame_rx, nr_slot_rx, num_candidates, own_subchannel);
  
     // Hold the channel estimates in frequency domain.
     int32_t pscch_est_size = ((((fp->symbols_per_slot*(fp->ofdm_symbol_size+LTE_CE_FILTER_LENGTH))+15)/16)*16);

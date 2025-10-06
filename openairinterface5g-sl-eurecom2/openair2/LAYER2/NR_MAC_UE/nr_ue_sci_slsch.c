@@ -240,27 +240,29 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
   //_PSCCH PSSCH TX: Size of subchannels in a PSSCH resource (l_subch)
   AssertFatal(sci_pdu->time_resource_assignment.val == 0, "need to handle a non-zero time_resource_assignment (2 or 3 time hops, N=2,3)\n");
   
-  // Decode FRIV to get starting subchannel and length
-  uint16_t start_subchannel = 0;
+  // Extract subchannel information from FRIV to calculate correct startrb
+  uint16_t startsc = 0;  // starting subchannel index
   convNRFRIV(sci_pdu->frequency_resource_assignment.val,
              nr_sl_pssch_pscch_pdu->num_subch,
              *sl_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16,
              &nr_sl_pssch_pscch_pdu->l_subch,
-             &start_subchannel, NULL);
-  
-  // Calculate actual starting PRB based on decoded subchannel index
-  // startrb = base_rb + (subchannel_index * subchannel_size_in_prbs)
+             &startsc, NULL);
+             
+  // freq domain allocation starts - Calculate startrb based on selected subchannel
   nr_sl_pssch_pscch_pdu->startrb = *sl_res_pool->sl_StartRB_Subchannel_r16 + 
-                                   (start_subchannel * nr_sl_pssch_pscch_pdu->subchannel_size);
-  
-  LOG_I(NR_MAC, "[SUBCHANNEL_FIX] 🔧 FRIV=0x%x → subchannel=%d, startrb=%d (base=%ld + subchan=%d × size=%d)\n",
-        sci_pdu->frequency_resource_assignment.val, start_subchannel, nr_sl_pssch_pscch_pdu->startrb,
-        *sl_res_pool->sl_StartRB_Subchannel_r16, start_subchannel, nr_sl_pssch_pscch_pdu->subchannel_size);
+                                   (startsc * nr_sl_pssch_pscch_pdu->subchannel_size);
   //number of symbols for Sidelink transmission on PSSCH/PSCCH
   //(Total Sidelink symbols available - number of psfch symbols configured - 2)
   //Guard symbol + AGC symbol are also excluded
   //Indicates the number of symbols for PSCCH+PSSCH txn
   int num_psfch_symbols = 0;
+  LOG_I(NR_MAC,"[STARTRB_CALC] 📍 CALCULATED startrb=%d (base=%ld + subchannel=%d * size=%d), pscch_numsym=%d, pscch_numrbs=%d\n",
+  nr_sl_pssch_pscch_pdu->startrb,
+  *sl_res_pool->sl_StartRB_Subchannel_r16,
+  startsc,
+  nr_sl_pssch_pscch_pdu->subchannel_size,
+  nr_sl_pssch_pscch_pdu->pscch_numsym,
+  nr_sl_pssch_pscch_pdu->pscch_numrbs);
   if (sl_res_pool->sl_PSFCH_Config_r16 && sl_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16 && *sl_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16>0) {
      // As per 38214 8.1.3.2, num_psfch_symbols can be 3 if psfch_overhead_indication.nbits is 1; FYI psfch_overhead_indication.nbits is set to 1 in case of PSFCH period 2 or 4 in sl_determine_sci_1a_len()
      num_psfch_symbols = 3;
@@ -666,21 +668,9 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
   if (mac->sl_sensing_data.size > 1)
     remove_old_sensing_data(&sensing_data.frame_slot, sl_mac->sl_RxPool[0]->t0, &mac->sl_sensing_data, sl_mac);
 
-  LOG_E(NR_MAC,"UE%d Sensing data: frame %d, slot %d, rsrp %d, rsvp %d, subch_start %d, subch_len %d\n",
-         mod_id,
-         sensing_data.frame_slot.frame,
-         sensing_data.frame_slot.slot,
-         sensing_data.sl_rsrp,
-         sensing_data.rsvp,
-         sensing_data.subch_start,
-         sensing_data.subch_len);
-
-  
   if (sci_pdu->reserved.val && !mac->is_synced) {
-    LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 Setting is_synced=true via SCI reserved bit\n");
-    LOG_I(NR_MAC, "[SYNC_DEBUG] 📍 Location: nr_ue_sci_slsch.c line ~679, src_id=%d\n", mac->src_id);
     mac->is_synced = true;
-    LOG_I(NR_PHY, "[SYNC_DEBUG] ✅ Nearby UE is synced now!!! is_synced=%d\n", mac->is_synced);
+    LOG_D(NR_PHY, "Nearby UE is synced now!!!\n");
   }
   LOG_D(NR_MAC,"SCI1A: frequency_resource %d, time_resource %d, dmrs_pattern %d, beta_offset_indicator %d, mcs %d, number_of_dmrs_port %d, 2nd stage SCI format %d\n",
         sci_pdu->frequency_resource_assignment.val,sci_pdu->time_resource_assignment.val,sci_pdu->dmrs_pattern.val,sci_pdu->beta_offset_indicator,sci_pdu->mcs,sci_pdu->number_of_dmrs_port,sci_pdu->second_stage_sci_format);

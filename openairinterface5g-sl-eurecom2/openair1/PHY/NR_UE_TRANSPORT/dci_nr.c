@@ -978,9 +978,7 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
             sci_ind->sensing_result = 0;
             sci_ind->pssch_rsrp = 0; // measuring from pscch below; setting this flag to zero
             // Calculate subchannel index from CCE position
-            // CCE contains the PRB offset, need to convert back to subchannel index
-            uint32_t subchannel_size = 25; // Default subchannel size in PRBs - should be extracted from config
-            uint32_t subchannel_index = CCEind / subchannel_size;
+            uint32_t subchannel_index = CCEind; // This should be the subchannel index from our blind decoding
             
             sci_ind->sci_pdu[sci_ind->number_of_SCIs].sci_format_type = SL_SCI_FORMAT_1A_ON_PSCCH;
             sci_ind->sci_pdu[sci_ind->number_of_SCIs].subch_index = subchannel_index;
@@ -992,20 +990,13 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
             sci_ind->number_of_SCIs++;
             ue->SL_UE_PHY_PARAMS.pscch.rx_ok++;
             
-            //LOG_I(NR_PHY,"[PSCCH_RX] ✅ UE%d DECODED SCI1A: frame=%d.%d, CCE=%d, subchannel=%d, Nid=0x%x, RSRP=%d dBm\n", 
-                  //ue->Mod_id, proc->frame_rx, proc->nr_slot_rx, CCEind, subchannel_index, Nid, *rsrp_dBm);   
+            LOG_I(NR_PHY,"[PSCCH_RX] ✅ UE%d DECODED SCI1A: frame=%d.%d, subchannel=%d, Nid=0x%x, RSRP=%d dBm\n", 
+                  ue->Mod_id, proc->frame_rx, proc->nr_slot_rx, subchannel_index, Nid, *rsrp_dBm);   
           }
           break;    // If DCI is found, no need to check for remaining DCI lengths
         }
       } else {
-        // Enhanced debug logging for SCI decoding failures
-        if (sci_ind != NULL) {
-          uint32_t subchannel_size = 25; // Default subchannel size in PRBs
-          uint32_t subchannel_index = CCEind / subchannel_size;
-          // LOG_W(NR_PHY,"[PSCCH_RX] ❌ UE%d FAILED SCI1A: frame=%d.%d, CCE=%d, subchannel=%d, CRC=0x%x≠RNTI=0x%x, RSRP=%d dBm\n", 
-          //       subchannel_index/25, proc->frame_rx, proc->nr_slot_rx, CCEind, subchannel_index, crc, n_rnti, *rsrp_dBm);
-        }
-        //LOG_D(PHY,"(%i.%i) Decoded crc %x does not match rnti %x for DCI format %d\n", proc->frame_rx, proc->nr_slot_rx, crc, n_rnti, rel15->dci_format_options[k]);
+        LOG_D(PHY,"(%i.%i) Decoded crc %x does not match rnti %x for DCI format %d\n", proc->frame_rx, proc->nr_slot_rx, crc, n_rnti, rel15->dci_format_options[k]);
       }
     }
     e_rx_cand_idx += 9*L*6*2; //e_rx index for next candidate (L CCEs, 6 REGs per CCE and 9 REs per REG and 2 uint16_t per RE)

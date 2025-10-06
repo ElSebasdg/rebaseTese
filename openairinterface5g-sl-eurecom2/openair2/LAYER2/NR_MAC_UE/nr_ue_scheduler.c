@@ -85,7 +85,6 @@ static void print_sensing_data_list(List_t *sensing_data, int line) {
   }
 }
 
-
 sl_resource_info_t* get_resource_element(List_t* resource_list, frameslot_t sfn) {
   for (int i = 0; i < resource_list->size; i++) {
     sl_resource_info_t *itr_rsrc = (sl_resource_info_t*)((char*)resource_list->data + i * resource_list->element_size);
@@ -3219,9 +3218,9 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
   uint16_t frame_tx_16 = frame_tx % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_tx_in_16frames = (frame_tx_16 * slots_per_frame) + slot_tx;
   
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame, slot, frame_16, slot_in_16frames);
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame_tx, slot_tx, frame_tx_16, slot_tx_in_16frames);
 
   //Adjust PSBCH Indices based on current RX timing
@@ -3232,10 +3231,10 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
   ssb_timealloc = &sl_mac->tx_sl_bch.ssb_time_alloc;
   sl_mac->tx_sl_bch.num_ssb = sl_adjust_ssb_indices(ssb_timealloc, slot_tx_in_16frames, &sl_mac->tx_sl_bch.ssb_slot);
 
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on RX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
                                                             mod_id, frame, slot, sl_mac->rx_sl_bch.num_ssb,
                                                             sl_mac->rx_sl_bch.ssb_slot);
-  LOG_I(NR_MAC,"   [UE%d]PSBCH params adjusted based on TX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
+  LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. NumSSB:%d, ssb_slot:%d\n",
                                                             mod_id, frame_tx, slot_tx, sl_mac->tx_sl_bch.num_ssb,
                                                             sl_mac->tx_sl_bch.ssb_slot);
 
@@ -3470,24 +3469,12 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   }
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
-  if (slot > 9 && get_nrUE_params()->sync_ref) {
-    LOG_D(NR_MAC, "[SYNC_REF_TX] ❌ Sync ref cannot transmit in slot %d (> 9)\n", slot);
-    return is_resource_allocated;
-  }
+  if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
 
-  if (slot < 10 && !get_nrUE_params()->sync_ref) {
-    LOG_D(NR_MAC, "[UE_TX] ❌ Normal UE cannot transmit in slot %d (< 10)\n", slot);
-    return is_resource_allocated;
-  }
+  if (slot < 10 && !get_nrUE_params()->sync_ref) return is_resource_allocated;
 
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         sl_ind->module_id, frame, slot,sl_ind->slot_type);
-  
-  if (get_nrUE_params()->sync_ref && (slot >= 6 && slot <= 9)) {
-    LOG_I(NR_MAC, "[SYNC_REF_TX] ✅ Sync ref in valid TX slot %d (allowed: 6-9)\n", slot);
-  } else if (!get_nrUE_params()->sync_ref && (slot >= 16 && slot <= 19)) {
-    LOG_I(NR_MAC, "[UE_TX] ✅ Normal UE in valid TX slot %d (allowed: 16-19)\n", slot);
-  }
 
     // 🔍 DEEP ANALYSIS: Log UE list state at function entry
   LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 nr_ue_sl_pssch_scheduler ENTRY: frame=%d.%d, local_srcid=%d\n", 
@@ -3509,26 +3496,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
 
   NR_SL_UEs_t *UE_info = &mac->sl_info;
-
-  // SYNC REF ENHANCEMENT: Force transmission with dummy data if sync_ref and no active UEs
-  if (get_nrUE_params()->sync_ref && (*(UE_info->list) == NULL || active_ues == 0)) {
-    // Create a dummy UE entry for sync ref to have something to transmit
-    static bool dummy_ue_created = false;
-    if (!dummy_ue_created && (slot >= 6 && slot <= 9)) {
-      LOG_I(NR_MAC, "[SYNC_REF_TX] 📡 Creating dummy transmission data for sync ref in slot %d\n", slot);
-      
-      // Add a minimal dummy payload to force transmission - slsch_payload is a fixed array
-      memset(mac->slsch_payload, 0, sizeof(mac->slsch_payload));
-      sprintf((char*)mac->slsch_payload, "SYNC_REF_DUMMY_DATA_FRAME_%d_SLOT_%d", frame, slot);
-      
-      // Ensure there's at least minimal data to transmit
-      tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload = mac->slsch_payload;
-      tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.slsch_payload_length = 32;
-      
-      LOG_I(NR_MAC, "[SYNC_REF_TX] 📡 Forcing sync ref transmission with dummy data\n");
-      dummy_ue_created = true;
-    }
-  }
 
   if (*(UE_info->list) == NULL) {
     LOG_D(NR_MAC, "UE list is empty\n");
@@ -3997,13 +3964,6 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
                                               &sl_mac_params->rx_sl_bch,
                                               sl_ind->slot_type);
 
-
-  //  comment is_psbch_rx_slot is true only if sync_source is SYNC_REF_UE and
-  if (is_psbch_rx_slot) {
-    LOG_W(NR_MAC, "is_psbch_rx_slot: %d, Frame: %d,Slot: %d, slot_type %d, rx_slss_id %d, sync_source %d\n",
-          is_psbch_rx_slot, frame, slot, sl_ind->slot_type, sl_cfg->sl_sync_source.rx_slss_id, get_nrUE_params()->sync_ref);
-  }
-
   if (is_psbch_rx_slot &&
       sl_ind->slot_type == SIDELINK_SLOT_TYPE_RX) {
 
@@ -4028,9 +3988,7 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
 
     if (is_psbch_tx_slot &&
         sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
-      
-      LOG_W(NR_MAC, "is_psbch_tx_slot: %d, Frame: %d,Slot: %d, slot_type %d, sync_source %d\n",
-          is_psbch_tx_slot, frame, slot, sl_ind->slot_type, get_nrUE_params()->sync_ref);
+
       *config_type = SL_NR_CONFIG_TYPE_TX_PSBCH;
       tx_config->number_pdus = 1;
       tx_config->sfn = frame;
@@ -4169,7 +4127,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   frame_slot.frame = frame;
   frame_slot.slot = slot;
 
-  // resource selection and sensing only if not PSBCH slot
   sl_resource_info_t *resource = NULL;
   if (mac->sl_candidate_resources && mac->sl_candidate_resources->size > 0 && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     LOG_D(NR_MAC, "%4d.%2d sl_candidate_resources %p size %ld, capacity %ld slot_type %d\n", frame, slot, mac->sl_candidate_resources, mac->sl_candidate_resources->size, mac->sl_candidate_resources->capacity, sl_ind->slot_type);
@@ -4224,9 +4181,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      uint8_t mask = mac->sl_rx_res_pool->ext1->sl_TimeResource_r16->buf[slot_mod_period>>3];
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
-  if (sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) {
-    rx_allowed=false;
-  }
+  if (sl_ind->slot_type==SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) rx_allowed=false;
   
   // Debug logging for slot access permissions
   if ((frame % 10 == 0) && (slot < 5)) {  // Only log occasionally to avoid spam
@@ -4241,14 +4196,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
                       ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
 
   if ((prev_slot != slot) && rx_allowed && !is_psbch_slot) {
-      // Add safety checks before PSCCH RX scheduling
-      if (!sl_mac || !sl_mac->sl_RxPool[0] || !mac->sl_bwp || !mac->sl_rx_res_pool) {
-        LOG_E(NR_MAC, "[SAFETY_CHECK] UE%d frame=%d.%d: NULL pointer check failed - skipping PSCCH RX\n", 
-              mac->src_id, frame, slot);
-        prev_slot = slot;
-        return;
-      }
-      
       frameslot_t fs;
       fs.frame = frame;
       fs.slot = slot;
@@ -4262,21 +4209,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       prev_slot = slot;
   }
 
-
-  // 🔍 DEBUG: Log is_synced state for sync ref debugging
-  if (get_nrUE_params()->sync_ref) {
-    LOG_I(NR_MAC, "[SYNC_REF_DEBUG] 🔍 Frame %d.%d - is_synced=%d, src_id=%d\n", 
-          frame, slot, mac->is_synced, mac->src_id);
-  }
-
-  // log to check conditions before calling pssch scheduler
-  LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
-        frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
-    
-  // If sidelink resource pool is configured
-  // AND NOT a PSBCH slot
-  // AND TX is allowed in this slot
-  // AND slot type is TX
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
     LOG_I(NR_MAC, "[PSSCH_SCHEDULER] 📤 UE%d SCHEDULING TX: frame=%d.%d, slot_type=%d\n", 
