@@ -836,7 +836,7 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS ||
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH) {
     if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS)
-      LOG_D(NR_PHY, "(%d.%d) Sending %s\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH]);
+      LOG_I(NR_PHY, "(%d.%d) Sending %s in startPRB: %d\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH], phy_data->nr_sl_pssch_pscch_pdu.startrb);
 
         // 🔍 PHY TX FORENSICS: Verify PDU before transmission
     if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
