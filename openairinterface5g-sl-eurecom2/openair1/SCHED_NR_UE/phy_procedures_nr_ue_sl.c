@@ -303,6 +303,20 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
       slsch->active = false;
       slsch_harq->round = 0;
       LOG_D(NR_PHY, "%4d.%2d SLSCH received ok \n", proc->frame_rx, proc->nr_slot_rx);
+      
+      // 🔍 RX TRACKING: Log successful reception with subchannel details
+      if (slsch_harq->b) {
+        uint8_t *rx_pdu = (uint8_t*)slsch_harq->b;
+        LOG_W(NR_PHY, "[RX_TRACKING] 📥 UE%d RECEIVED: srcid=%d→dstid=%d, frame=%d.%d\n",
+              UE->Mod_id, rx_pdu[1], rx_pdu[2], proc->frame_rx, proc->nr_slot_rx);
+        LOG_W(NR_PHY, "[RX_TRACKING] 📥   PRB_START=%d, RB_SIZE=%d, SUBCHANNEL=%d\n",
+              slsch_harq->ulsch_pdu.rb_start,
+              slsch_harq->ulsch_pdu.rb_size,
+              slsch_harq->ulsch_pdu.rb_start / 25);  // Assuming 25 PRBs per subchannel
+        LOG_W(NR_PHY, "[RX_TRACKING] 📥   TBS=%d bytes, HARQ_PID=%d, MCS=%d\n",
+              slsch_harq->TBS, rdata->harq_pid, slsch_harq->ulsch_pdu.mcs_index);
+      }
+      
       slsch_status.rdata = rdata;
       slsch_status.rxok = true;
       //dumpsig=1;
@@ -566,6 +580,7 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
 
     fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15 = &phy_data->phy_pdcch_config.pdcch_config[0];
     LOG_D(NR_PHY,"pscch_numsym = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numsym);
+    printf("\n");
     LOG_I(NR_PHY,"pscch_startrb = %d\n",phy_data->nr_sl_pscch_pdu.pscch_startrb);
     LOG_D(NR_PHY,"pscch_numrbs = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numrbs);
     LOG_D(NR_PHY,"pscch_dmrs_scrambling_id = %d\n",phy_data->nr_sl_pscch_pdu.pscch_dmrs_scrambling_id);

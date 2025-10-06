@@ -4205,7 +4205,10 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       nr_ue_sl_pscch_rx_scheduler(sl_ind, mac->sl_bwp, mac->sl_rx_res_pool, &rx_config, &tti_action, sl_has_psfch, mac->src_id);
       prev_slot = slot;
   }
-
+    // log to check conditions before calling pssch scheduler
+  LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
+        frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
+    
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
     bool is_resource_allocated = nr_ue_sl_pssch_scheduler(mac, sl_ind, mac->sl_bwp, mac->sl_tx_res_pool, &tx_config, resource, &tti_action);
@@ -4225,7 +4228,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   if (((slot % 20) == 6) && ((frame % 100) == 0)) {
     char stats_output[16000] = {0};
     dump_mac_stats_sl(mac, stats_output, sizeof(stats_output), true);
-    LOG_D(NR_MAC, "Frame.Slot %d.%d\n%s\n", frame, slot, stats_output);
+    LOG_W(NR_MAC, "Frame.Slot %d.%d\n%s\n", frame, slot, stats_output);
   }
 
   if (tti_action == SL_NR_CONFIG_TYPE_RX_PSBCH || tti_action == SL_NR_CONFIG_TYPE_RX_PSCCH || tti_action == SL_NR_CONFIG_TYPE_RX_PSSCH_SCI ||
@@ -4617,7 +4620,7 @@ List_t get_nr_sl_comm_opportunities(NR_UE_MAC_INST_t *mac,
       uint8_t pscch_startrb = *resource_pool->sl_StartRB_Subchannel_r16;
       // Number of symbols used for PSCCH
       uint16_t num_sl_pscch_sym = pscch_tda[*resource_pool->sl_PSCCH_Config_r16->choice.setup->sl_TimeResourcePSCCH_r16];
-      LOG_I(NR_MAC, "pscch_startrb %d, num_sl_pscch_sym %d, pscch_numrbs %d\n",
+      LOG_D(NR_MAC, "pscch_startrb %d, num_sl_pscch_sym %d, pscch_numrbs %d\n",
             pscch_startrb,
             num_sl_pscch_sym,
             num_sl_pscch_rbs);
