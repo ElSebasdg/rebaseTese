@@ -836,7 +836,7 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS ||
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH) {
     if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS)
-      LOG_I(NR_PHY, "(%d.%d) Sending %s in startPRB: %d\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH], phy_data->nr_sl_pssch_pscch_pdu.startrb);
+      LOG_I(NR_PHY, "(%d.%d) Sending %s in startPRB: %d\n\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH], phy_data->nr_sl_pssch_pscch_pdu.startrb);
 
         // 🔍 PHY TX FORENSICS: Verify PDU before transmission
     if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
@@ -857,6 +857,11 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
     }
 
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;
+    LOG_I(NR_PHY, "Tx PSCCH with Nid %i (%d.%d), PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n", phy_data->pscch_Nid, frame_tx, slot_tx,
+           phy_data->nr_sl_pssch_pscch_pdu.startrb,
+           phy_data->nr_sl_pssch_pscch_pdu.l_subch,
+           phy_data->nr_sl_pssch_pscch_pdu.startrb / 25);  // Assuming 25 PRBs per subchannel
+           
     nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *csi_params = (nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *)&phy_data->nr_sl_pssch_pscch_pdu.nr_sl_csi_rs_pdu;
     csi_params->scramb_id = phy_data->pscch_Nid % (1 << 10);
     for (uint8_t harq_pid = 0; harq_pid < NR_MAX_ULSCH_HARQ_PROCESSES; harq_pid++) {

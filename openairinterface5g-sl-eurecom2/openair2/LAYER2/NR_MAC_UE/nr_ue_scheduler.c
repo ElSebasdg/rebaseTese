@@ -3921,6 +3921,9 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
   rx_config->sfn = sl_ind->frame_rx;
   rx_config->slot = sl_ind->slot_rx;
   rx_config->sl_rx_config_list[0].pdu_type = *config_type;
+  // fill PSCCH RX PDU
+  LOG_I(NR_MAC, "[UE%d] SL-PSCCH RX SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
+        local_src_id, sl_ind->frame_rx, sl_ind->slot_rx,sl_ind->slot_type);
   config_pscch_pdu_rx(&rx_config->sl_rx_config_list[0].rx_pscch_config_pdu,
                        sl_bwp,
                        sl_res_pool,

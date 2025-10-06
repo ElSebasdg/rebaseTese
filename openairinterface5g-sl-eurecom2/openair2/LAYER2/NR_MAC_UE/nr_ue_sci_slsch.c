@@ -504,8 +504,8 @@ void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
   
   LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍 UE srcid=%d will blind decode subchannel=%d (PRB_start=%d)\n",
         local_src_id, target_subchannel, nr_sl_pscch_pdu->pscch_startrb);
-  LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍   base_startrb=%d + (subchannel=%d * size=%d) = %d\n",
-        base_startrb, target_subchannel, subchannel_size, nr_sl_pscch_pdu->pscch_startrb);
+  // LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍   base_startrb=%d + (subchannel=%d * size=%d) = %d\n",
+  //       base_startrb, target_subchannel, subchannel_size, nr_sl_pscch_pdu->pscch_startrb);
 
 
 
@@ -522,6 +522,9 @@ void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
   nr_sl_pscch_pdu->subchannel_size=subch_to_rb[*sl_res_pool->sl_SubchannelSize_r16];
   // PSCCH PSSCH RX: this is set to 1 - Blind decoding for SCI1A done on every subchannel
   // PSCCH SENSING: this is equal to number of subchannels forming a resource.
+  LOG_I(NR_MAC,"[BLIND_DECODE_SUBCHANNEL] 🔍 num_subch=%d, subchannel_size=%d\n",
+        nr_sl_pscch_pdu->num_subch, nr_sl_pscch_pdu->subchannel_size);
+
 
   nr_sl_pscch_pdu->l_subch=1;
   //number of symbols for Sidelink transmission on PSSCH/PSCCH
@@ -541,7 +544,7 @@ void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
   // as part of TX pool sensing procedure.
   nr_sl_pscch_pdu->sense_pscch=0;
 
-  LOG_D(NR_MAC,"Programming PSCCH reception (sci_1a_length %d)\n",nr_sl_pscch_pdu->sci_1a_length);
+  LOG_I(NR_MAC,"Programming PSCCH reception (sci_1a_length %d)\n",nr_sl_pscch_pdu->sci_1a_length);
 
 }
 

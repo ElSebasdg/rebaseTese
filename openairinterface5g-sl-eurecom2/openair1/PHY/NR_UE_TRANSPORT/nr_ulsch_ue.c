@@ -203,6 +203,12 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
   uint16_t start_sc         = frame_parms->first_carrier_offset + (start_rb+(pscch_pssch_pdu == NULL ? pusch_pdu->bwp_start:0))*NR_NB_SC_PER_RB;
   uint16_t Tpmi             = pscch_pssch_pdu == NULL ? pusch_pdu->Tpmi : 0;
  
+  LOG_I(NR_PHY, "Tx ULSCH %d.%d harq_pid %d rnti %x start_rb %d nb_rb %d mod_order %d Nl %d Tpmi %d bwp_start %d start_sc %d start_symbol %d num_symbols %d cdmgrpsnodata %d dmrs_type %d\n",
+        frame, slot, harq_pid, rnti, start_rb, nb_rb, mod_order, Nl, Tpmi,
+        pscch_pssch_pdu == NULL ? pusch_pdu->bwp_start : 0,
+        start_sc, start_symbol, number_of_symbols, cdm_grps_no_data, dmrs_type);
+
+
   if (start_sc >= frame_parms->ofdm_symbol_size)
     start_sc -= frame_parms->ofdm_symbol_size;
   ulsch_ue->Nid_cell = frame_parms->Nid_cell;
