@@ -488,12 +488,24 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
                          const NR_SL_BWP_ConfigCommon_r16_t *sl_bwp,
                          const NR_SL_ResourcePool_r16_t *sl_res_pool,
-                         bool sl_has_psfch) {
+                         bool sl_has_psfch,
+                         uint8_t local_src_id) {
 
   nr_sci_pdu_t dummy_sci;
   // Starting RE of the lowest subchannel in a resource where PSCCH
   // freq domain allocation starts
-  nr_sl_pscch_pdu->pscch_startrb=*sl_res_pool->sl_StartRB_Subchannel_r16;
+  
+  // 🎯 BLIND DECODING SUBCHANNEL SELECTION: UE srcid=0 decodes subchannel 1
+  uint16_t base_startrb = *sl_res_pool->sl_StartRB_Subchannel_r16;
+  uint16_t subchannel_size = subch_to_rb[*sl_res_pool->sl_SubchannelSize_r16];
+  uint8_t target_subchannel = (local_src_id == 0) ? 1 : 0;  // srcid=0 decodes subchannel 1, others decode subchannel 0
+  
+  nr_sl_pscch_pdu->pscch_startrb = base_startrb + (target_subchannel * subchannel_size);
+  
+  LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍 UE srcid=%d will blind decode subchannel=%d (PRB_start=%d)\n",
+        local_src_id, target_subchannel, nr_sl_pscch_pdu->pscch_startrb);
+  LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍   base_startrb=%d + (subchannel=%d * size=%d) = %d\n",
+        base_startrb, target_subchannel, subchannel_size, nr_sl_pscch_pdu->pscch_startrb);
   // Number of symbols used for PSCCH
   nr_sl_pscch_pdu->pscch_numsym=pscch_tda[*sl_res_pool->sl_PSCCH_Config_r16->choice.setup->sl_TimeResourcePSCCH_r16];
   // Number of  RBS used for PSCCH

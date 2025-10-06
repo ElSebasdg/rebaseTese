@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "intertask_interface.h": "c"
+        "intertask_interface.h": "c",
+        "vcd_signal_dumper.h": "c"
     }
 }
