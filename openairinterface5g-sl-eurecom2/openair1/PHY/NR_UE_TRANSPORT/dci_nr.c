@@ -977,21 +977,15 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
             sci_ind->slot = proc->nr_slot_rx;
             sci_ind->sensing_result = 0;
             sci_ind->pssch_rsrp = 0; // measuring from pscch below; setting this flag to zero
-            // Calculate subchannel index from CCE position
-            uint32_t subchannel_index = CCEind; // This should be the subchannel index from our blind decoding
-            
             sci_ind->sci_pdu[sci_ind->number_of_SCIs].sci_format_type = SL_SCI_FORMAT_1A_ON_PSCCH;
-            sci_ind->sci_pdu[sci_ind->number_of_SCIs].subch_index = subchannel_index;
+            sci_ind->sci_pdu[sci_ind->number_of_SCIs].subch_index = 0;
             sci_ind->sci_pdu[sci_ind->number_of_SCIs].pscch_rsrp = *rsrp_dBm;
             sci_ind->sci_pdu[sci_ind->number_of_SCIs].sci_payloadlen =  dci_length;
             sci_ind->sci_pdu[sci_ind->number_of_SCIs].Nid = Nid;
 
             memcpy(sci_ind->sci_pdu[sci_ind->number_of_SCIs].sci_payloadBits,&dci_estimation,8);
             sci_ind->number_of_SCIs++;
-            ue->SL_UE_PHY_PARAMS.pscch.rx_ok++;
-            
-            LOG_I(NR_PHY,"[PSCCH_RX] ✅ UE%d DECODED SCI1A: frame=%d.%d, subchannel=%d, Nid=0x%x, RSRP=%d dBm\n", 
-                  ue->Mod_id, proc->frame_rx, proc->nr_slot_rx, subchannel_index, Nid, *rsrp_dBm);   
+	    ue->SL_UE_PHY_PARAMS.pscch.rx_ok++;   
           }
           break;    // If DCI is found, no need to check for remaining DCI lengths
         }
