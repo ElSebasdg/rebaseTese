@@ -63,11 +63,8 @@ void nr_init_pdcch_dmrs(NR_DL_FRAME_PARMS *fp, uint32_t ***pdcch_dmrs, uint32_t 
     for (uint8_t symb=0; symb<fp->symbols_per_slot; symb++) {
 
       reset = 1;
-      // 🔧 FIX: Use same formula as nr_gold_pdcch (RX) - WITH modulo 2^31
-      uint32_t x2tmp0 = ((fp->symbols_per_slot*slot+symb+1) * ((Nid<<1)+1));
-      x2tmp0 <<= 17;
-      x2 = (x2tmp0 + (Nid<<1)) % (1U << 31);
-      LOG_I(NR_PHY,"[GOLD_INIT_TX] 🔍 nr_init_pdcch_dmrs: slot=%d, symb=%d, Nid=%d, x2tmp0=0x%x, x2=0x%x (WITH MODULO 2^31 - FIXED!)\n",slot,symb,Nid,x2tmp0,x2);
+      x2 = ((1<<17) * (fp->symbols_per_slot*slot+symb+1) * ((Nid<<1)+1) + (Nid<<1));
+      LOG_D(PHY,"PDCCH DMRS slot %d, symb %d, Nid %d, x2 %x\n",slot,symb,Nid,x2);
       for (uint32_t n=0; n<pdcch_dmrs_init_length; n++) {
         pdcch_dmrs[slot][symb][n] = lte_gold_generic(&x1, &x2, reset);
         reset = 0;
