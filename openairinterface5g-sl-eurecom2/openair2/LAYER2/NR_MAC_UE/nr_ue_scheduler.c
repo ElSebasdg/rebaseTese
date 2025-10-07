@@ -3673,20 +3673,20 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       }
       
       // 🔍 CRITICAL: Log header before PDU pointer advancement
-      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
-      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            //sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
-            //pdu, cur_harq->transportBlock);
+      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
+      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
+            sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
+      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
+            pdu, cur_harq->transportBlock);
       
       pdu += sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
-      
-      // 🔍 CRITICAL: Log header after PDU pointer advancement  
-      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
-      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
-            //sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
-            //pdu, cur_harq->transportBlock);
+
+      // 🔍 CRITICAL: Log header after PDU pointer advancement
+      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
+      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
+            sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
+      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
+            pdu, cur_harq->transportBlock);
 
 
 
@@ -3921,15 +3921,6 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
   rx_config->sfn = sl_ind->frame_rx;
   rx_config->slot = sl_ind->slot_rx;
   rx_config->sl_rx_config_list[0].pdu_type = *config_type;
-  
-  // 🔍 CRITICAL: Verify pdu_type consistency
-  LOG_I(NR_MAC, "[PDU_TYPE_CHECK] ✅ UE%d PSCCH RX: config_type=%d, pdu_type=%d, frame=%d.%d\n",
-        local_src_id, *config_type, rx_config->sl_rx_config_list[0].pdu_type,
-        sl_ind->frame_rx, sl_ind->slot_rx);
-  AssertFatal(*config_type == rx_config->sl_rx_config_list[0].pdu_type,
-              "CRITICAL: pdu_type mismatch! config_type=%d != pdu_type=%d\n",
-              *config_type, rx_config->sl_rx_config_list[0].pdu_type);
-  
   // fill PSCCH RX PDU
   LOG_I(NR_MAC, "[UE%d] SL-PSCCH RX SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         local_src_id, sl_ind->frame_rx, sl_ind->slot_rx,sl_ind->slot_type);
