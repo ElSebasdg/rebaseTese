@@ -63,6 +63,7 @@ void nr_gold_pdcch(NR_DL_FRAME_PARMS *fp, uint32_t ***nr_gold,uint16_t nid)
       x2tmp0 = ((fp->symbols_per_slot * ns + l + 1) * ((nid << 1) + 1));
       x2tmp0 <<= 17;
       x2 = (x2tmp0 + (nid << 1)) % (1U << 31);  //cinit
+      LOG_I(NR_PHY,"[GOLD_INIT_RX] 🔍 nr_gold_pdcch: ns=%d, l=%d, nid=%d, x2tmp0=0x%x, x2=0x%x (WITH MODULO 2^31)\n",ns,l,nid,x2tmp0,x2);
       for (n=0; n<pdcch_dmrs_init_length; n++) {
         nr_gold[ns][l][n] = lte_gold_generic(&x1, &x2, reset);
         reset = 0;
