@@ -1557,8 +1557,6 @@ int nr_ue_sl_indication(nr_sidelink_indication_t *sl_indication)
   //NR_UE_L2_STATE_t ret;
   module_id_t module_id = sl_indication->module_id;
   int cc_id = sl_indication->cc_id;
-    LOG_I(NR_MAC,"Calling sl_nr_process_sci_ind for frame %d, slot %d   ,%d SCIs\n",
-        frame, slot, sl_indication->sci_ind->number_of_SCIs);
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
 
   uint16_t slot = sl_indication->slot_rx;
@@ -1567,6 +1565,8 @@ int nr_ue_sl_indication(nr_sidelink_indication_t *sl_indication)
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
 
   if (sl_indication->rx_ind) {
+    LOG_I(NR_MAC,"Calling sl_nr_process_sci_ind for frame %d, slot %d   ,%d SCIs\n",
+        frame, slot, sl_indication->sci_ind->number_of_SCIs);
     sl_nr_process_rx_ind(module_id, frame, slot, sl_mac, sl_indication->rx_ind);
   } if (sl_indication->sci_ind) {
     sl_nr_process_sci_ind(module_id, cc_id, frame, slot, sl_mac, sl_indication->sci_ind, sl_indication->phy_data);
