@@ -108,6 +108,13 @@ uint32_t nr_generate_dci(PHY_VARS_gNB *gNB, PHY_VARS_NR_UE *ue,
       gNB->pdcch_gold_init = dci_pdu->ScramblingId;
       nr_init_pdcch_dmrs(&gNB->frame_parms,gNB->nr_gold_pdcch_dmrs, dci_pdu->ScramblingId);
     }
+    
+    // 🔍 CRITICAL: Log which scrambling ID is being used for DMRS generation
+    if (ue) {
+      LOG_I(NR_PHY, "[DMRS_GEN] 🔍 UE generating PSCCH DMRS with ScramblingId=%d (from dci_pdu)\n",
+            dci_pdu->ScramblingId);
+    }
+    
     uint32_t **gold_pdcch_dmrs=NULL;
     if (gNB) gold_pdcch_dmrs= gNB->nr_gold_pdcch_dmrs[slot];
     else if (ue) gold_pdcch_dmrs = ue->nr_gold_pscch_dmrs[slot];

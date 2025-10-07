@@ -928,6 +928,11 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
       LOG_D(PHY, "(%i.%i) Trying DCI candidate %d of %d number of candidates, CCE %d (%d), L %d, length %d, format %s\n",
             proc->frame_rx, proc->nr_slot_rx, j, rel15->number_of_candidates, CCEind, e_rx_cand_idx, L, dci_length, nr_dci_format_string[rel15->dci_format_options[k]]);
 
+      // 🔍 CRITICAL: Log scrambling parameters used for unscrambling
+      if (pscch_flag) {
+        LOG_I(NR_PHY, "[DCI_DECODE] 🔍 Unscrambling with: pdcch_dmrs_scrambling_id=%d, scrambling_rnti=%d\n",
+              rel15->coreset.pdcch_dmrs_scrambling_id, rel15->coreset.scrambling_rnti);
+      }
 
       nr_pdcch_unscrambling(&pdcch_e_rx[e_rx_cand_idx], rel15->coreset.scrambling_rnti, pscch_flag==0 ? L*108 : L*18, rel15->coreset.pdcch_dmrs_scrambling_id, tmp_e,0);
 
