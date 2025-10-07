@@ -3673,19 +3673,19 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       }
       
       // 🔍 CRITICAL: Log header before PDU pointer advancement
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
+      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
+      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
             sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
+      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
             pdu, cur_harq->transportBlock);
       
       pdu += sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
       
       // 🔍 CRITICAL: Log header after PDU pointer advancement  
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
+      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
+      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
             sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
+      // LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
             pdu, cur_harq->transportBlock);
 
 
