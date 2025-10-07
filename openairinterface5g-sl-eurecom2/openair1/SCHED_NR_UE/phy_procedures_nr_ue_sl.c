@@ -613,18 +613,9 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.pdcch_dmrs_scrambling_id = phy_data->nr_sl_pscch_pdu.pscch_dmrs_scrambling_id;
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
-
-
-
-
-
-    rel15->coreset.pdcch_dmrs_scrambling_id = phy_data->nr_sl_pscch_pdu.pscch_dmrs_scrambling_id;
-    rel15->coreset.scrambling_rnti = 1010;
-    rel15->coreset.tci_present_in_dci = 0;
-    
     // 🔍 CRITICAL: Log DMRS scrambling configuration
-    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍   RX DMRS: pdcch_dmrs_scrambling_id=%d, scrambling_rnti=%d\n",
-          rel15->coreset.pdcch_dmrs_scrambling_id, rel15->coreset.scrambling_rnti);
+    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍   RX DMRS: pdcch_dmrs_scrambling_id=%d, scrambling_rnti=%d, rnti=%d\n",
+          rel15->coreset.pdcch_dmrs_scrambling_id, rel15->coreset.scrambling_rnti, rel15->rnti);
 
     rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.l_subch;
     rel15->num_dci_options = 1;
