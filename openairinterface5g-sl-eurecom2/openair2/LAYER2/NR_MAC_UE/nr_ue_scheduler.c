@@ -4189,6 +4189,11 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
   if (sl_ind->slot_type==SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) rx_allowed=false;
+  
+  // 🔍 DIAGNOSTIC LOG: Why is PSCCH RX not being scheduled?
+  LOG_I(NR_MAC, "[PSCCH_RX_DIAG] 🔍 UE%d Frame.Slot %d.%d: rx_allowed=%d, slot_type=%d, phy_data=%p, is_psbch_slot=%d\n",
+        mac->src_id, frame, slot, rx_allowed, sl_ind->slot_type, sl_ind->phy_data, is_psbch_slot);
+  
   static uint16_t prev_slot = 0;
   NR_SL_PSFCH_Config_r16_t *sl_psfch_config = mac->sl_tx_res_pool->sl_PSFCH_Config_r16 ? mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup : NULL;
   const uint8_t psfch_periods[] = {0,1,2,4};
@@ -4196,6 +4201,8 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
                       ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
 
   if ((prev_slot != slot) && rx_allowed && !is_psbch_slot) {
+      LOG_I(NR_MAC, "[PSCCH_RX_DIAG] ✅ UE%d Frame.Slot %d.%d: CALLING nr_ue_sl_pscch_rx_scheduler!\n",
+            mac->src_id, frame, slot);
       frameslot_t fs;
       fs.frame = frame;
       fs.slot = slot;

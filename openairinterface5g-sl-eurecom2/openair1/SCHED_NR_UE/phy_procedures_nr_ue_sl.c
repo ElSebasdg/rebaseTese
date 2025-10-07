@@ -579,6 +579,13 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
   else if (phy_data->sl_rx_action == SL_NR_CONFIG_TYPE_RX_PSCCH){
 
     fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15 = &phy_data->phy_pdcch_config.pdcch_config[0];
+    
+    // 🔍 CRITICAL DIAGNOSTIC: Log PSCCH RX configuration
+    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍 UE%d Frame.Slot %d.%d: ENTERING PSCCH RX!\n", 
+          ue->Mod_id, frame_rx, nr_slot_rx);
+    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍   pscch_startrb=%d, pscch_numrbs=%d\n",
+          phy_data->nr_sl_pscch_pdu.pscch_startrb, phy_data->nr_sl_pscch_pdu.pscch_numrbs);
+    
     LOG_D(NR_PHY,"pscch_numsym = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numsym);
     printf("\n");
     LOG_I(NR_PHY,"pscch_startrb = %d\n",phy_data->nr_sl_pscch_pdu.pscch_startrb);
@@ -593,8 +600,10 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
 
     rel15->rnti = 0;
     rel15->BWPSize = phy_data->nr_sl_pscch_pdu.num_subch * phy_data->nr_sl_pscch_pdu.subchannel_size;
-    rel15->BWPStart = phy_data->nr_sl_pscch_pdu.pscch_startrb;
+    // BWPStart should be the start of the resource pool (PRB 0 in resource pool coordinates)
+    rel15->BWPStart = 0;
     rel15->SubcarrierSpacing = fp->subcarrier_spacing;
+    // frequency_domain_resource[0] is the rb_offset within the BWP (the absolute PRB start)
     rel15->coreset.frequency_domain_resource[0] = phy_data->nr_sl_pscch_pdu.pscch_startrb;
     rel15->coreset.frequency_domain_resource[1] = phy_data->nr_sl_pscch_pdu.pscch_numrbs;
     rel15->coreset.CoreSetType = NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG;
@@ -645,8 +654,15 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
                                   rxdataF,
                                   &rsrp_dBm);
     }
+    
+    // 🔍 CRITICAL: Log channel estimation power
+    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍 UE%d Frame.Slot %d.%d: Channel estimation RSRP=%d dBm\n",
+          ue->Mod_id, frame_rx, nr_slot_rx, rsrp_dBm);
 
-    nr_ue_pdcch_procedures(ue, proc, 1, pscch_est_size, pscch_dl_ch_estimates, phy_data, 0, rxdataF, &rsrp_dBm);
+    int dci_cnt = nr_ue_pdcch_procedures(ue, proc, 1, pscch_est_size, pscch_dl_ch_estimates, phy_data, 0, rxdataF, &rsrp_dBm);
+    
+    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍 UE%d Frame.Slot %d.%d: nr_ue_pdcch_procedures returned dci_cnt=%d\n",
+          ue->Mod_id, frame_rx, nr_slot_rx, dci_cnt);
     LOG_D(NR_PHY,"returned from nr_ue_pdcch_procedures\n");
   }
 
@@ -857,6 +873,15 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
     }
 
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;
+    
+    // 🔍 TX POWER LOG: Log transmission details
+    LOG_I(NR_PHY, "[PSCCH_TX_PHY] 📡 UE%d Frame.Slot %d.%d: TX PSCCH with Nid=%d, AMP=%d\n", 
+          ue->Mod_id, frame_tx, slot_tx, phy_data->pscch_Nid, AMP);
+    LOG_I(NR_PHY, "[PSCCH_TX_PHY] 📡   PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n",
+          phy_data->nr_sl_pssch_pscch_pdu.startrb,
+          phy_data->nr_sl_pssch_pscch_pdu.l_subch,
+          phy_data->nr_sl_pssch_pscch_pdu.startrb / 25);
+    
     LOG_I(NR_PHY, "Tx PSCCH with Nid %i (%d.%d), PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n", phy_data->pscch_Nid, frame_tx, slot_tx,
            phy_data->nr_sl_pssch_pscch_pdu.startrb,
            phy_data->nr_sl_pssch_pscch_pdu.l_subch,
