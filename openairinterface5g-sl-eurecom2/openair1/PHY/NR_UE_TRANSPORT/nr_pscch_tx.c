@@ -68,6 +68,7 @@ uint32_t nr_generate_sci1(const PHY_VARS_NR_UE *ue,
         pscch_pssch_pdu->pscch_numsym,
         pscch_pssch_pdu->pscch_dmrs_scrambling_id,
         pscch_pssch_pdu->pscch_sci_payload_len);
+        
   pdcch_pdu_rel15.StartSymbolIndex               = 1;
   pdcch_pdu_rel15.DurationSymbols                = pscch_pssch_pdu->pscch_numsym;
   pdcch_pdu_rel15.numDlDci                       = 1;

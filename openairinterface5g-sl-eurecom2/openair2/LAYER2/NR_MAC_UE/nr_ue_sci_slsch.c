@@ -286,17 +286,17 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 
 	    // frequency resource assignment
 	    fsize = sci_pdu->frequency_resource_assignment.nbits;
-            LOG_D(NR_MAC,"SCI1A: frequency resource assignment (%d,%d) in position %d\n",sci_pdu->frequency_resource_assignment.val,fsize,pos);
+            LOG_I(NR_MAC,"SCI1A: frequency resource assignment (%d,%d) in position %d\n",sci_pdu->frequency_resource_assignment.val,fsize,pos);
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->frequency_resource_assignment.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ -1);
 	    // time-domain-assignment
 	    fsize = sci_pdu->time_resource_assignment.nbits;
-            LOG_D(NR_MAC,"SCI1A: time resource assignment (%d,%d) in position %d\n",sci_pdu->time_resource_assignment.val,fsize,pos);
+            LOG_I(NR_MAC,"SCI1A: time resource assignment (%d,%d) in position %d\n",sci_pdu->time_resource_assignment.val,fsize,pos);
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->time_resource_assignment.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ - 1);
 	    // resource reservation period
             fsize = sci_pdu->resource_reservation_period.nbits;
-            LOG_D(NR_MAC,"SCI1A: resource_reservation_period (%d,%d) in position %d\n",sci_pdu->resource_reservation_period.val,fsize,pos);
+            LOG_I(NR_MAC,"SCI1A: resource_reservation_period (%d,%d) in position %d\n",sci_pdu->resource_reservation_period.val,fsize,pos);
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->resource_reservation_period.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ -1);
 	    // DMRS pattern
@@ -340,6 +340,14 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 	    fsize = sci_pdu->conflict_information_receiver.nbits;
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->conflict_information_receiver.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ -1);
+	    
+	    // 🔍 SCI1A PAYLOAD COMPLETE: Log final encoded payload
+	    LOG_I(NR_MAC, "[SCI1A_PAYLOAD] 🔍 Complete SCI1A payload (%d bits): 0x%016lx\n", sci_size, *sci_payload);
+	    LOG_I(NR_MAC, "[SCI1A_PAYLOAD] 🔍   FRIV=%d (subchannel allocation), TRIV=%d (time resource)\n", 
+	          sci_pdu->frequency_resource_assignment.val, sci_pdu->time_resource_assignment.val);
+	    LOG_I(NR_MAC, "[SCI1A_PAYLOAD] 🔍   Priority=%d, MCS=%d, Reserved=%d (sync bit)\n",
+	          sci_pdu->priority, sci_pdu->mcs, sci_pdu->reserved.val);
+	    
 	    break;
     default:
             AssertFatal(1==0,"Unknown format1 %d\n",format1);
