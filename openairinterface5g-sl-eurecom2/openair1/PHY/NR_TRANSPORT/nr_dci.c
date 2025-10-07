@@ -111,13 +111,17 @@ uint32_t nr_generate_dci(PHY_VARS_gNB *gNB, PHY_VARS_NR_UE *ue,
     
     // 🔍 CRITICAL: Log which scrambling ID is being used for DMRS generation
     if (ue) {
-      LOG_I(NR_PHY, "[DMRS_GEN] 🔍 UE generating PSCCH DMRS with ScramblingId=%d (from dci_pdu)\n",
-            dci_pdu->ScramblingId);
+      LOG_I(NR_PHY, "[DMRS_GEN] 🔍 UE generating PSCCH DMRS with ScramblingId=%d (from dci_pdu), slot=%d\n",
+            dci_pdu->ScramblingId, slot);
     }
     
     uint32_t **gold_pdcch_dmrs=NULL;
     if (gNB) gold_pdcch_dmrs= gNB->nr_gold_pdcch_dmrs[slot];
-    else if (ue) gold_pdcch_dmrs = ue->nr_gold_pscch_dmrs[slot];
+    else if (ue) {
+      gold_pdcch_dmrs = ue->nr_gold_pscch_dmrs[slot];
+      LOG_I(NR_PHY, "[DMRS_TX] 🔍 UE%d TX: Using gold sequence for slot=%d from ue->nr_gold_pscch_dmrs[%d]\n",
+            ue->Mod_id, slot, slot);
+    }
     
     cset_start_symb = pdcch_pdu_rel15->StartSymbolIndex;
     cset_nsymb = pdcch_pdu_rel15->DurationSymbols;

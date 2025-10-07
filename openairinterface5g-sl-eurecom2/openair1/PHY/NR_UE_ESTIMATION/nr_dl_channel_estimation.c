@@ -1107,8 +1107,11 @@ void nr_pdcch_channel_estimation(PHY_VARS_NR_UE *ue,
   int pilot[(nb_rb_coreset + dmrs_ref) * 3] __attribute__((aligned(16)));
   if (pscch_flag ==0) 
     nr_pdcch_dmrs_rx(ue,Ns,ue->nr_gold_pdcch[gNB_id][Ns][symbol], &pilot[0],2000,(nb_rb_coreset+dmrs_ref));
-  else 
+  else {
+    LOG_I(NR_PHY, "[DMRS_RX] 🔍 UE%d RX: Using gold sequence for Ns=%d, symbol=%d from ue->nr_gold_pscch[%d][%d]\n",
+          ue->Mod_id, Ns, symbol, Ns, symbol);
     nr_pdcch_dmrs_rx(ue,Ns,ue->nr_gold_pscch[Ns][symbol], &pilot[0],2000,(nb_rb_coreset+dmrs_ref));
+  }
 
   for (aarx=0; aarx<ue->frame_parms.nb_antennas_rx; aarx++) {
 
