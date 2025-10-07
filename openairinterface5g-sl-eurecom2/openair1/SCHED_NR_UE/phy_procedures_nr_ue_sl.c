@@ -646,7 +646,23 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
                                   &rsrp_dBm);
     }
 
-    nr_ue_pdcch_procedures(ue, proc, 1, pscch_est_size, pscch_dl_ch_estimates, phy_data, 0, rxdataF, &rsrp_dBm);
+    // 🔍 PSCCH BLIND DECODE: Log before attempting decode
+    LOG_I(NR_PHY, "[PSCCH_DECODE] 🔍 UE%d ATTEMPTING BLIND DECODE: frame=%d.%d\n",
+          ue->Mod_id, proc->frame_rx, proc->nr_slot_rx);
+    LOG_I(NR_PHY, "[PSCCH_DECODE] 🔍   PRB_start=%d, num_rbs=%d, duration=%d symbols\n",
+          rel15->BWPStart, rel15->coreset.frequency_domain_resource[1], rel15->coreset.duration);
+    LOG_I(NR_PHY, "[PSCCH_DECODE] 🔍   num_candidates=%d, dci_length=%d, L=%d\n",
+          rel15->number_of_candidates, rel15->dci_length_options[0], rel15->L[0]);
+    
+    int dci_count = nr_ue_pdcch_procedures(ue, proc, 1, pscch_est_size, pscch_dl_ch_estimates, phy_data, 0, rxdataF, &rsrp_dBm);
+    
+    LOG_I(NR_PHY, "[PSCCH_DECODE] 🔍 DECODE RESULT: dci_count=%d (0=no DCI found, >0=DCI decoded)\n", dci_count);
+    if (dci_count == 0) {
+      LOG_W(NR_PHY, "[PSCCH_DECODE] ⚠️ NO DCI FOUND - Blind decode failed in frame=%d.%d\n",
+            proc->frame_rx, proc->nr_slot_rx);
+    } else {
+      LOG_I(NR_PHY, "[PSCCH_DECODE] ✅ SUCCESS - Decoded %d DCI(s)\n", dci_count);
+    }
     LOG_D(NR_PHY,"returned from nr_ue_pdcch_procedures\n");
   }
 

@@ -650,6 +650,13 @@ void extract_pscch_pdu(uint64_t *sci1_payload, int len,
 
 int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,frame_t frame, int slot, sl_nr_sci_indication_pdu_t *sci,void *phy_data) {
 
+  // 🔍 SCI1A PROCESSING START
+  LOG_I(NR_MAC, "[SCI1A_PROCESS] 🔍 UE%d PROCESSING SCI1A: frame=%d.%d\n", mod_id, frame, slot);
+  LOG_I(NR_MAC, "[SCI1A_PROCESS] 🔍   sci_format=%d, Nid=0x%x, subch_idx=%d, payload_len=%d\n",
+        sci->sci_format_type, sci->Nid, sci->subch_index, sci->sci_payloadlen);
+  LOG_I(NR_MAC, "[SCI1A_PROCESS] 🔍   payload=0x%016llx, pscch_rsrp=%d\n",
+        *(unsigned long long*)sci->sci_payloadBits, sci->pscch_rsrp);
+
   nr_sci_pdu_t *sci_pdu = &mac->sci_pdu_rx;  //&mac->def_sci_pdu[slot][sci->sci_format_type];
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
   memset(sci_pdu,0,sizeof(*sci_pdu));
@@ -659,7 +666,12 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
   LOG_D(NR_MAC,"%4d.%2d Received sci indication (sci format %d, Nid %x, subChannelIndex %d, payloadSize %d,payload %llx) pscch_rsrp %d\n",
         frame, slot, sci->sci_format_type,sci->Nid,sci->subch_index,sci->sci_payloadlen,*(unsigned long long*)sci->sci_payloadBits, sci->pscch_rsrp);
   AssertFatal(sci->sci_format_type == SL_SCI_FORMAT_1A_ON_PSCCH, "need to have format 1A here only\n");
+  
+  LOG_I(NR_MAC, "[SCI1A_EXTRACT] 🔍 Extracting PSCCH PDU fields...\n");
   extract_pscch_pdu((uint64_t *)sci->sci_payloadBits, sci->sci_payloadlen,sl_bwp, sl_res_pool, sci_pdu);
+  LOG_I(NR_MAC, "[SCI1A_EXTRACT] ✅ Extracted: FRIV=%d, TRIV=%d, priority=%d, MCS=%d, reserved=%d\n",
+        sci_pdu->frequency_resource_assignment.val, sci_pdu->time_resource_assignment.val,
+        sci_pdu->priority, sci_pdu->mcs, sci_pdu->reserved.val);
 
   uint16_t l_subch;
   convNRFRIV(sci_pdu->frequency_resource_assignment.val,
