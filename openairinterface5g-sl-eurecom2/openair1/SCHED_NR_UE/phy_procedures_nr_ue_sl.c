@@ -253,12 +253,10 @@ int nr_slsch_procedures(PHY_VARS_NR_UE *ue, int frame_rx, int slot_rx, int SLSCH
   // 🔍 PHY RX FORENSICS: Log after decoding
   LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍 AFTER ULSCH DECODE: frame=%d.%d, nbDecode=%d \n", 
         frame_rx, slot_rx, nbDecode);
-  if (ue->slsch[SLSCH_id].harq_process != NULL && ue->slsch[SLSCH_id].harq_process->b != NULL) {
+  if (ue->slsch[SLSCH_id].harq_process && ue->slsch[SLSCH_id].harq_process->b) {
     uint8_t *decoded_pdu = (uint8_t*)ue->slsch[SLSCH_id].harq_process->b;
     LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍   DECODED PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
           (decoded_pdu[0] >> 4) & 0xF, (decoded_pdu[0] >> 3) & 0x1, decoded_pdu[1], decoded_pdu[2]);
-  } else {
-    LOG_W(NR_PHY, "[PHY_RX_FORENSICS] ⚠️ harq_process or b is NULL!\n");
   }
   
 }
@@ -307,7 +305,7 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
       LOG_D(NR_PHY, "%4d.%2d SLSCH received ok \n", proc->frame_rx, proc->nr_slot_rx);
       
       // 🔍 RX TRACKING: Log successful reception with subchannel details
-      if (slsch_harq != NULL && slsch_harq->b != NULL) {
+      if (slsch_harq->b) {
         uint8_t *rx_pdu = (uint8_t*)slsch_harq->b;
         LOG_W(NR_PHY, "[RX_TRACKING] 📥 UE%d RECEIVED: srcid=%d→dstid=%d, frame=%d.%d\n",
               UE->Mod_id, rx_pdu[1], rx_pdu[2], proc->frame_rx, proc->nr_slot_rx);
@@ -840,8 +838,8 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
     if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS)
       LOG_I(NR_PHY, "(%d.%d) Sending %s in startPRB: %d\n\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH], phy_data->nr_sl_pssch_pscch_pdu.startrb);
 
-    // 🔍 PHY TX FORENSICS: Verify PDU before transmission
-    if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload != NULL) {
+        // 🔍 PHY TX FORENSICS: Verify PDU before transmission
+    if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
       uint8_t *pdu_ptr = (uint8_t*)phy_data->nr_sl_pssch_pscch_pdu.slsch_payload;
       LOG_I(NR_PHY, "[PHY_TX_FORENSICS] 🔍 BEFORE RF TX: frame=%d.%d, UE=%d \n", frame_tx, slot_tx, ue->Mod_id);
       LOG_I(NR_PHY, "[PHY_TX_FORENSICS] 🔍   PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
@@ -856,13 +854,6 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
             phy_data->nr_sl_pssch_pscch_pdu.startrb, 
             phy_data->nr_sl_pssch_pscch_pdu.l_subch,
             phy_data->nr_sl_pssch_pscch_pdu.startrb / 25);  // Assuming 25 PRBs per subchannel
-    } else {
-      LOG_W(NR_PHY, "[PHY_TX_FORENSICS] ⚠️ slsch_payload is NULL! frame=%d.%d, UE=%d\n", 
-            frame_tx, slot_tx, ue->Mod_id);
-      LOG_W(NR_PHY, "[PHY_TX_FORENSICS] ⚠️   PRB_START=%d, L_SUBCH=%d, tb_size=%d\n",
-            phy_data->nr_sl_pssch_pscch_pdu.startrb, 
-            phy_data->nr_sl_pssch_pscch_pdu.l_subch,
-            phy_data->nr_sl_pssch_pscch_pdu.tb_size);
     }
 
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;

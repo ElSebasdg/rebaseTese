@@ -1412,7 +1412,7 @@ static void handle_sl_bch(module_id_t module_id,uint8_t *const sl_mib,
                           uint16_t slot_rx,
                           uint16_t rx_slss_id)
 {
-  LOG_I(NR_MAC," handle_sl_bch CALLED \n");
+
   LOG_I(NR_MAC," decode SL-MIB %d\n",rx_slss_id);
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
@@ -1429,12 +1429,7 @@ static void handle_sl_bch(module_id_t module_id,uint8_t *const sl_mib,
   frame_1 = ((frame_1 & 0x06) >> 1) << 8;
   uint16_t frame = frame_1 | frame_0;
   uint8_t slot =  ((sl_mib[2] & 0x01) << 6) | ((sl_mib[3] & 0xFC) >> 2);
-  
-  LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 Setting is_synced=true via SL-MIB reception\n");
-  LOG_I(NR_MAC, "[SYNC_DEBUG] 📍 Location: NR_IF_Module.c line ~1432, module_id=%d, src_id=%d\n", 
-        module_id, mac->src_id);
   mac->is_synced = true;
-  LOG_I(NR_MAC, "[SYNC_DEBUG] ✅ After SL-MIB: is_synced=%d\n", mac->is_synced);
 
   LOG_I(NR_MAC, "%s[UE%d]In %d:%d Received SL-MIB:%x .Contents- SL-TDD config:%x, Incov:%d, FN:%d, Slot:%d\n",KRED,
                                       module_id, frame_rx, slot_rx,*((uint32_t *)sl_mib),
@@ -1489,7 +1484,7 @@ void sl_nr_process_rx_ind(uint16_t mod_id,
     case SL_NR_RX_PDU_TYPE_SSB:
 
       if (rx_ind->rx_indication_body[num_pdus - 1].ssb_pdu.decode_status) {
-        LOG_E(NR_MAC, "%s[UE%d]SL-MAC Received SL-SSB: RSRP:%d dBm/RE, rx_psbch_payload:%x, rx_slss_id:%d\n",KRED,
+        LOG_I(NR_MAC, "%s[UE%d]SL-MAC Received SL-SSB: RSRP:%d dBm/RE, rx_psbch_payload:%x, rx_slss_id:%d\n",KRED,
                          mod_id,rx_ind->rx_indication_body[num_pdus - 1].ssb_pdu.rsrp_dbm,
                          *((uint32_t *)rx_ind->rx_indication_body[num_pdus - 1].ssb_pdu.psbch_payload),
                          rx_ind->rx_indication_body[num_pdus - 1].ssb_pdu.rx_slss_id);
@@ -1498,14 +1493,14 @@ void sl_nr_process_rx_ind(uint16_t mod_id,
                       rx_ind->rx_indication_body[num_pdus - 1].ssb_pdu.rx_slss_id);
         sl_mac->ssb_rsrp_dBm = rx_ind->rx_indication_body[num_pdus - 1].ssb_pdu.rsrp_dbm;
       } else {
-        LOG_E(NR_MAC, "[UE%d]SL-MAC - NO SL-SSB Received\n",mod_id);
+        LOG_I(NR_MAC, "[UE%d]SL-MAC - NO SL-SSB Received\n",mod_id);
       }
 
       break;
     case SL_NR_RX_PDU_TYPE_SLSCH:
     case SL_NR_RX_PDU_TYPE_SLSCH_PSFCH:
 
-        LOG_E(NR_MAC, "%s[UE%d]SL-MAC Received SLSCH: rx_slsch_pdu:%p, rx_slsch_len %d, ack_nack %d, harq_pid %d\n",KGRN,
+        LOG_I(NR_MAC, "%s[UE%d]SL-MAC Received SLSCH: rx_slsch_pdu:%p, rx_slsch_len %d, ack_nack %d, harq_pid %d\n",KGRN,
                          mod_id,rx_ind->rx_indication_body[num_pdus - 1].rx_slsch_pdu.pdu,
                          rx_ind->rx_indication_body[num_pdus - 1].rx_slsch_pdu.pdu_length,
   		         rx_ind->rx_indication_body[num_pdus - 1].rx_slsch_pdu.ack_nack,
@@ -1531,11 +1526,11 @@ void sl_nr_process_sci_ind(uint16_t module_id, int cc_id, uint32_t frame, uint32
 
     switch (sci_ind->sci_pdu[idx].sci_format_type) { 
       case SL_SCI_FORMAT_1A_ON_PSCCH:
-         LOG_E(NR_MAC,"%s%d.%d Received PSCCH PDU %d/%d PSCCH RSRP %d, length %d, sub-channel index %d, Nid %x, payload %llx\n", KBLU,sci_ind->sfn,sci_ind->slot,1+idx,num_SCIs,sci_ind->sci_pdu[idx].pscch_rsrp,sci_ind->sci_pdu[idx].sci_payloadlen,sci_ind->sci_pdu[idx].subch_index,sci_ind->sci_pdu[idx].Nid,*(unsigned long long*)sci_ind->sci_pdu[idx].sci_payloadBits);       
+         LOG_I(NR_MAC,"%s%d.%d Received PSCCH PDU %d/%d PSCCH RSRP %d, length %d, sub-channel index %d, Nid %x, payload %llx\n", KBLU,sci_ind->sfn,sci_ind->slot,1+idx,num_SCIs,sci_ind->sci_pdu[idx].pscch_rsrp,sci_ind->sci_pdu[idx].sci_payloadlen,sci_ind->sci_pdu[idx].subch_index,sci_ind->sci_pdu[idx].Nid,*(unsigned long long*)sci_ind->sci_pdu[idx].sci_payloadBits);       
          handle_sl_sci1a(module_id,frame,slot,&sci_ind->sci_pdu[idx],phy_data); 
        break;
       case SL_SCI_FORMAT_2_ON_PSSCH:
-         LOG_E(NR_MAC,"%s%d.%d Received PSSCH PDU %d/%d PSSCH RSRP %d, length %d, payload %llx\n", KBLU,sci_ind->sfn,sci_ind->slot,1+idx,num_SCIs,sci_ind->sci_pdu[idx].pscch_rsrp,sci_ind->sci_pdu[idx].sci_payloadlen,*(unsigned long long*)sci_ind->sci_pdu[idx].sci_payloadBits);       
+         LOG_I(NR_MAC,"%s%d.%d Received PSSCH PDU %d/%d PSSCH RSRP %d, length %d, payload %llx\n", KBLU,sci_ind->sfn,sci_ind->slot,1+idx,num_SCIs,sci_ind->sci_pdu[idx].pscch_rsrp,sci_ind->sci_pdu[idx].sci_payloadlen,*(unsigned long long*)sci_ind->sci_pdu[idx].sci_payloadBits);       
          handle_sl_sci2(module_id, cc_id, frame, slot, &sci_ind->sci_pdu[idx], phy_data);
        break;
       default:
@@ -1565,13 +1560,12 @@ int nr_ue_sl_indication(nr_sidelink_indication_t *sl_indication)
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
 
   if (sl_indication->rx_ind) {
-    LOG_I(NR_MAC,"Calling sl_nr_process_sci_ind for frame %d, slot %d   ,%d SCIs\n",
-        frame, slot, sl_indication->sci_ind->number_of_SCIs);
     sl_nr_process_rx_ind(module_id, frame, slot, sl_mac, sl_indication->rx_ind);
   } if (sl_indication->sci_ind) {
+    LOG_I(NR_MAC,"Calling sl_nr_process_sci_ind for frame %d, slot %d   ,%d SCIs\n",
+        frame, slot, sl_indication->sci_ind->number_of_SCIs);
     sl_nr_process_sci_ind(module_id, cc_id, frame, slot, sl_mac, sl_indication->sci_ind, sl_indication->phy_data);
   } else {
-    //LOG_E(NR_MAC, "%sCalling SL scheduler %s\n", KGRN, KNRM);
     nr_ue_sidelink_scheduler(sl_indication);
   }
   LOG_D(NR_MAC,"returning from nr_sl_indication\n");
