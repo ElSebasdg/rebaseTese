@@ -111,8 +111,8 @@ uint32_t nr_generate_dci(PHY_VARS_gNB *gNB, PHY_VARS_NR_UE *ue,
     
     // 🔍 CRITICAL: Log which scrambling ID is being used for DMRS generation
     if (ue) {
-      LOG_I(NR_PHY, "[DMRS_GEN] 🔍 UE generating PSCCH DMRS with ScramblingId=%d (from dci_pdu), slot=%d\n",
-            dci_pdu->ScramblingId, slot);
+      LOG_I(NR_PHY, "[DMRS_GEN] 🔍 UE generating PSCCH DMRS with ScramblingId=%d (from dci_pdu), slot=%d, CCE: %d\n",
+            dci_pdu->ScramblingId, slot, dci_pdu->CceIndex);
     }
     
     uint32_t **gold_pdcch_dmrs=NULL;
