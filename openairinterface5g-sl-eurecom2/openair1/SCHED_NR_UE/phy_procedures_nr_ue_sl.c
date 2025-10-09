@@ -239,16 +239,38 @@ int nr_slsch_procedures(PHY_VARS_NR_UE *ue, int frame_rx, int slot_rx, int SLSCH
   pusch_pdu.maintenance_parms_v3.tbSizeLbrmBytes=slsch_pdu->tbslbrm>>3;
 
   LOG_D(NR_PHY, "%4d.%2d Calling nr_ulsch_decoding\n", frame_rx, slot_rx);
+  
+  // 🎯 RX RESOURCE TRACKING: Log reception details BEFORE decoding
+  LOG_I(NR_PHY, "[RX_RESOURCE_TRACKING] 📥 UE%d RECEIVING: frame=%d.%d, harq_pid=%d, tb_size=%d bytes\n",
+        ue->Mod_id, frame_rx, slot_rx, harq_pid, slsch_pdu->tb_size);
+  LOG_I(NR_PHY, "[RX_RESOURCE_TRACKING] 📥   RX_DETAILS: num_subch=%d, subchannel_size=%d, rb_size=%d, mcs=%d\n",
+        pssch_pdu->num_subch, pssch_pdu->subchannel_size, rb_size, slsch_pdu->mcs);
+  
   int nbDecode =
       nr_ulsch_decoding(NULL, ue, SLSCH_id, ue->pssch_vars[SLSCH_id].llr, fp, &pusch_pdu, frame_rx, slot_rx, harq_pid, G, proc, phy_data, ack_nack_rcvd, num_acks);
   
-  // 🔍 PHY RX FORENSICS: Log after decoding
+  // 🔍 PHY RX FORENSICS: Log after decoding with SOURCE ID
   LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍 AFTER ULSCH DECODE: frame=%d.%d, nbDecode=%d \n", 
         frame_rx, slot_rx, nbDecode);
   if (ue->slsch[SLSCH_id].harq_process && ue->slsch[SLSCH_id].harq_process->b) {
     uint8_t *decoded_pdu = (uint8_t*)ue->slsch[SLSCH_id].harq_process->b;
+    uint8_t rx_src_id = decoded_pdu[1];
+    uint8_t rx_dst_id = decoded_pdu[2];
     LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍   DECODED PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
-          (decoded_pdu[0] >> 4) & 0xF, (decoded_pdu[0] >> 3) & 0x1, decoded_pdu[1], decoded_pdu[2]);
+          (decoded_pdu[0] >> 4) & 0xF, (decoded_pdu[0] >> 3) & 0x1, rx_src_id, rx_dst_id);
+    
+    // 🎯 CRITICAL RX CONFIRMATION: Show who sent this resource
+    LOG_W(NR_PHY, "[RX_CONFIRMATION] ✅ UE%d RECEIVED RESOURCE FROM srcid=%d (→dstid=%d) in slot=%d (frame=%d.%d)\n",
+          ue->Mod_id, rx_src_id, rx_dst_id, slot_rx, frame_rx, slot_rx);
+    
+    // 🎯 SYNC_REF VERIFICATION: Check if sync_ref is receiving correctly
+    if (get_nrUE_params()->sync_ref) {
+      LOG_W(NR_PHY, "[SYNC_REF_RX] 🔵 SYNC_REF UE%d received from srcid=%d in slot=%d (expected slots: 16-19)\n",
+            ue->Mod_id, rx_src_id, slot_rx);
+    } else {
+      LOG_W(NR_PHY, "[NEARBY_UE_RX] 🟢 NEARBY UE%d received from srcid=%d in slot=%d (expected slots: 6-9)\n",
+            ue->Mod_id, rx_src_id, slot_rx);
+    }
   }
   
       return nbDecode;
@@ -296,6 +318,25 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
       slsch->active = false;
       slsch_harq->round = 0;
       LOG_D(NR_PHY, "%4d.%2d SLSCH received ok \n", proc->frame_rx, proc->nr_slot_rx);
+      
+      // 🎯 POST-DECODE RX CONFIRMATION: Extract and display source ID
+      if (slsch_harq->b) {
+        uint8_t *rx_pdu = (uint8_t*)slsch_harq->b;
+        uint8_t rx_src_id = rx_pdu[1];
+        uint8_t rx_dst_id = rx_pdu[2];
+        LOG_W(NR_PHY, "[POST_DECODE_RX] ✅ UE%d SUCCESSFULLY DECODED from srcid=%d→dstid=%d at frame=%d.%d, TBS=%d bytes\n",
+              UE->Mod_id, rx_src_id, rx_dst_id, proc->frame_rx, proc->nr_slot_rx, slsch_harq->TBS);
+        
+        // 🎯 SYNC_REF DECODE CONFIRMATION
+        if (get_nrUE_params()->sync_ref) {
+          LOG_W(NR_PHY, "[SYNC_REF_DECODE] 🔵 SYNC_REF UE%d decoded data from srcid=%d in slot=%d\n",
+                UE->Mod_id, rx_src_id, proc->nr_slot_rx);
+        } else {
+          LOG_W(NR_PHY, "[NEARBY_UE_DECODE] 🟢 NEARBY UE%d decoded data from srcid=%d in slot=%d\n",
+                UE->Mod_id, rx_src_id, proc->nr_slot_rx);
+        }
+      }
+      
       slsch_status.rdata = rdata;
       slsch_status.rxok = true;
       //dumpsig=1;
@@ -731,6 +772,14 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
             dB_fixed_x10(pssch_vars->ulsch_power_tot),
             dB_fixed_x10(pssch_vars->ulsch_noise_power_tot),
             ue->pssch_thres);
+      
+      // 🎯 RX STATUS: Log DTX (no signal detected)
+      LOG_I(NR_PHY, "[RX_STATUS] ⚫ UE%d: NO PSSCH detected in frame=%d.%d (power=%d, noise=%d, threshold=%d)\n",
+            ue->Mod_id, frame_rx, nr_slot_rx,
+            dB_fixed_x10(pssch_vars->ulsch_power_tot),
+            dB_fixed_x10(pssch_vars->ulsch_noise_power_tot),
+            ue->pssch_thres);
+      
       pssch_vars->ulsch_power_tot = pssch_vars->ulsch_noise_power_tot;
       pssch_vars->DTX = 1;
       //if (stats)
@@ -739,6 +788,13 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
       //pssch_DTX++;
       //  continue;
     } else {
+      // 🎯 RX STATUS: PSSCH signal detected!
+      LOG_W(NR_PHY, "[RX_STATUS] 🟢 UE%d: PSSCH DETECTED in frame=%d.%d (power=%d dB, noise=%d dB, SNR=%d dB)\n",
+            ue->Mod_id, frame_rx, nr_slot_rx,
+            dB_fixed_x10(pssch_vars->ulsch_power_tot)/10,
+            dB_fixed_x10(pssch_vars->ulsch_noise_power_tot)/10,
+            (dB_fixed_x10(pssch_vars->ulsch_power_tot) - dB_fixed_x10(pssch_vars->ulsch_noise_power_tot))/10);
+      
       pssch_vars->DTX = 0;
       int totalDecode = nr_slsch_procedures(ue, frame_rx, nr_slot_rx, 0, proc, phy_data, is_csi_rs_slot, ack_nack_rcvd, phy_data->num_psfch_pdus);
       LOG_D(NR_PHY,
