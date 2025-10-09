@@ -388,8 +388,8 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   uint8_t n_start_subch1 = (mac->src_id % total_available_subch); // Distribute UEs across available subchannels
   uint8_t n_start_subch2 = 0; // Keep as 0 for single resource allocation
   
-  LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
-        mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
+  //LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
+        //mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
                                                   // as we are considering only 1 subchannel, so we have initialized these variables with zeros.
   // Fill SCI1A
   sci_pdu->priority = 0;
