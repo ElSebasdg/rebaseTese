@@ -1410,37 +1410,10 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
 
   NR_SLSCH_MAC_SUBHEADER_FIXED *sl_sch_subheader = (NR_SLSCH_MAC_SUBHEADER_FIXED *) pduP;
   
-  // 🔍 DEEP DEBUG: Log the entire PDU header content
-  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍 RAW PDU HEADER: frame=%d.%d, pdu_len=%d\n", frame, slot, pdu_len);
-  LOG_W(NR_MAC, "[PDU_FORENSICS] 🔍   V=%d, R=%d, SRC=%d, DST=%d (local_srcid=%d)\n", 
-        sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST, 
-        mac ? mac->src_id : -1);
-  
-  // CRITICAL DEBUG: Log every PDU processing attempt with source UE info
-  LOG_W(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
-        module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);
-  
-  // 🔍 DEEP DEBUGGING: Add detailed self-loopback analysis
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍 RX Analysis: frame=%d.%d\n", frame, slot);
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍   PDU_SRC_ID=%d, LOCAL_SRC_ID=%d\n", 
-        sl_sch_subheader->SRC, mac ? mac->src_id : -1);
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍   PDU_DST_ID=%d, MODULE_ID=%d\n", 
-        sl_sch_subheader->DST, module_idP);
-  LOG_W(NR_MAC, "[LOOPBACK_ANALYSIS] 🔍   IS_SELF_LOOPBACK=%s\n", 
-        (mac && mac->src_id == sl_sch_subheader->SRC) ? "YES" : "NO");
-  
   // CRITICAL DEBUG: Log every PDU processing attempt with source UE info
   LOG_I(NR_MAC, "[SL_PDU_DEBUG] Processing PDU: module=%d, local_srcid=%d, pdu_srcid=%d, frame=%d.%d, pdu_len=%d\n",
         module_idP, mac ? mac->src_id : -1, sl_sch_subheader->SRC, frame, slot, pdu_len);
   
-    // SELF-LOOPBACK PREVENTION: Skip processing if UE receives its own transmission
-  if (mac && mac->src_id == sl_sch_subheader->SRC) {
-    LOG_I(NR_MAC, "[SL_PDU_DEBUG] ⚠️  SELF-LOOPBACK DETECTED: UE srcid=%d ignoring its own transmission\n", mac->src_id);
-    return;
-  }
-
-
-
   // Enhanced logging for multi-UE communication tracking
   static int pdu_counter = 0;
   bool track_communication = ((pdu_counter++ % 10) == 0);
