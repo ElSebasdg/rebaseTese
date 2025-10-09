@@ -493,9 +493,6 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
 NR_SL_UE_info_t* find_UE(NR_UE_MAC_INST_t *mac,
                          uint16_t ue_id);
 
-// 🎯 Function to initialize sched_psfch for a UE (public for use during UE list creation)
-void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue);
-
 int get_csi_reporting_frame_slot(NR_UE_MAC_INST_t *mac,
                                  NR_TDD_UL_DL_Pattern_t *tdd,
                                  uint8_t csi_offset,
