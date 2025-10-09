@@ -3469,9 +3469,20 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   }
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
-  if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
-
-  if (slot < 10 && !get_nrUE_params()->sync_ref) return is_resource_allocated;
+  // 🎯 SPECIFIC SLOT RESTRICTION: UE with src_id=1 transmits ONLY in slots 16 and 17
+  if (mac->src_id == 1) {
+    if (slot != 16 && slot != 17) {
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 16,17 allowed)\n",
+            mac->src_id, slot);
+      return is_resource_allocated;
+    }
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
+          mac->src_id, slot);
+  } else {
+    // Original slot separation logic for other UEs
+    if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
+    if (slot < 10 && !get_nrUE_params()->sync_ref) return is_resource_allocated;
+  }
 
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         sl_ind->module_id, frame, slot,sl_ind->slot_type);
@@ -4533,9 +4544,22 @@ bool slot_has_psfch(NR_UE_MAC_INST_t *mac, BIT_STRING_t *phy_sl_bitmap, uint64_t
   return has_psfch;
 }
 
-void validate_selected_sl_slot(bool tx, bool rx, NR_TDD_UL_DL_ConfigCommon_t *conf, frameslot_t frame_slot) {
+void validate_selected_sl_slot(bool tx, bool rx, NR_TDD_UL_DL_ConfigCommon_t *conf, frameslot_t frame_slot, uint8_t src_id) {
   AssertFatal(conf->pattern1.nrofUplinkSlots == 4 && conf->pattern1.nrofDownlinkSlots == 6,
               "Invalid configuration set. Please update the nrofUplinkSlots to 4 and nrofDownlinkSlots to 6.\n");
+  
+  // 🎯 SPECIFIC SLOT RESTRICTION: UE with src_id=1 only uses slots 16 and 17
+  if (src_id == 1) {
+    if (tx) {
+      AssertFatal((frame_slot.slot == 16 || frame_slot.slot == 17),
+                  "UE with src_id=1 MUST transmit only in slots 16 or 17. Current slot=%d is NOT allowed.\n",
+                  frame_slot.slot);
+    }
+    // For RX, we don't restrict (UE can receive in any slot)
+    return;
+  }
+  
+  // Original validation logic for other UEs
   if (get_nrUE_params()->sync_ref) {
     if (tx) {
       AssertFatal((frame_slot.slot == 6 || frame_slot.slot == 7 || frame_slot.slot == 8 || frame_slot.slot == 9),
@@ -4668,7 +4692,7 @@ List_t get_nr_sl_comm_opportunities(NR_UE_MAC_INST_t *mac,
                                .sl_has_psfch           = sl_has_psfch};
       de_normalize(slot_info.abs_slot_index, mu, &frame_slot);
       LOG_D(NR_MAC, "Pushing %4d.%2d\n", frame_slot.frame, frame_slot.slot);
-      validate_selected_sl_slot(true , false, mac->SL_MAC_PARAMS->sl_TDD_config, frame_slot);
+      validate_selected_sl_slot(true , false, mac->SL_MAC_PARAMS->sl_TDD_config, frame_slot, mac->src_id);
       push_back(&slot_info_list, &slot_info);
     }
     abs_pool_index = (abs_pool_index + 1) % phy_map_sz;
