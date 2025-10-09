@@ -173,7 +173,8 @@ __attribute__((unused)) static void print_connected_sl_ues(NR_UE_MAC_INST_t *mac
 }
 
 // Function to ensure sched_psfch is initialized for a UE with enhanced validation
-static void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue) {
+// 🎯 PUBLIC FUNCTION: Initialize sched_psfch for a UE (called during UE list creation)
+void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue) {
   if (!sl_ue) {
     LOG_E(NR_MAC, "[SL_INIT_ERROR] ensure_sched_psfch_initialized called with NULL sl_ue!\n");
     return;
@@ -1468,6 +1469,46 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     return;
   } else {
     LOG_I(NR_MAC, "[SL_RX_DATA] Found UE with SRC=%d, uid=%d - Processing PDU\n", sl_sch_subheader->SRC, UE->uid);
+    
+    // 🎯 DYNAMIC INITIALIZATION: Initialize sched_psfch on first RX from this UE
+    if (UE->UE_sched_ctrl.sched_psfch == NULL) {
+      LOG_I(NR_MAC, "[SL_DYNAMIC_INIT] 🔥 FIRST RX from srcid=%d! Initializing sched_psfch now...\n", sl_sch_subheader->SRC);
+      
+      // Get SL MAC params
+      sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
+      if (!sl_mac || !sl_mac->sl_TDD_config) {
+        LOG_E(NR_MAC, "[SL_DYNAMIC_INIT] ❌ Cannot initialize: SL_MAC_PARAMS not available yet!\n");
+      } else {
+        // Get configuration parameters
+        NR_TDD_UL_DL_ConfigCommon_t *tdd = sl_mac->sl_TDD_config;
+        int n_ul_slots_period = tdd ? tdd->pattern1.nrofUplinkSlots : 10;
+        
+        // Get number of subchannels from resource pool
+        int num_subch = 1; // default
+        if (mac->sl_tx_res_pool && mac->sl_tx_res_pool->sl_SubchannelSize_r16) {
+          num_subch = *mac->sl_tx_res_pool->sl_SubchannelSize_r16;
+        }
+        
+        int alloc_size = n_ul_slots_period * num_subch;
+        LOG_I(NR_MAC, "[SL_DYNAMIC_INIT] Allocating sched_psfch: n_ul_slots=%d, num_subch=%d, total_size=%d\n",
+              n_ul_slots_period, num_subch, alloc_size);
+        
+        UE->UE_sched_ctrl.sched_psfch = calloc(alloc_size, sizeof(SL_sched_feedback_t));
+        
+        if (UE->UE_sched_ctrl.sched_psfch) {
+          // Initialize all feedback slots
+          for (int i = 0; i < alloc_size; i++) {
+            UE->UE_sched_ctrl.sched_psfch[i].feedback_frame = -1;
+            UE->UE_sched_ctrl.sched_psfch[i].feedback_slot = -1;
+            UE->UE_sched_ctrl.sched_psfch[i].harq_feedback = 0;
+          }
+          LOG_I(NR_MAC, "[SL_DYNAMIC_INIT] ✅ Successfully initialized sched_psfch for srcid=%d (uid=%d)\n",
+                sl_sch_subheader->SRC, UE->uid);
+        } else {
+          LOG_E(NR_MAC, "[SL_DYNAMIC_INIT] ❌ Failed to allocate sched_psfch for srcid=%d\n", sl_sch_subheader->SRC);
+        }
+      }
+    }
   }
 
   if (pdu_type == SL_NR_RX_PDU_TYPE_SLSCH_PSFCH) {
