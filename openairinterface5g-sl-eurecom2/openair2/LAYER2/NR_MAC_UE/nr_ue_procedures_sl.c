@@ -173,7 +173,8 @@ __attribute__((unused)) static void print_connected_sl_ues(NR_UE_MAC_INST_t *mac
 }
 
 // Function to ensure sched_psfch is initialized for a UE with enhanced validation
-static void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue) {
+// 🎯 PUBLIC FUNCTION: Initialize sched_psfch for a UE (called during UE list creation)
+void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue) {
   if (!sl_ue) {
     LOG_E(NR_MAC, "[SL_INIT_ERROR] ensure_sched_psfch_initialized called with NULL sl_ue!\n");
     return;
