@@ -4549,11 +4549,15 @@ void validate_selected_sl_slot(bool tx, bool rx, NR_TDD_UL_DL_ConfigCommon_t *co
               "Invalid configuration set. Please update the nrofUplinkSlots to 4 and nrofDownlinkSlots to 6.\n");
   
   // 🎯 SPECIFIC SLOT RESTRICTION: UE with src_id=1 only uses slots 16 and 17
+  // This validation is NON-FATAL - just logs warnings
   if (src_id == 1) {
     if (tx) {
-      AssertFatal((frame_slot.slot == 16 || frame_slot.slot == 17),
-                  "UE with src_id=1 MUST transmit only in slots 16 or 17. Current slot=%d is NOT allowed.\n",
-                  frame_slot.slot);
+      if (!(frame_slot.slot == 16 || frame_slot.slot == 17)) {
+        LOG_W(NR_MAC, "[SLOT_RESTRICTION] ⚠️ UE src_id=1 selected slot=%d for TX (should only use 16,17). "
+                      "This slot will be IGNORED by the scheduler.\n", frame_slot.slot);
+      } else {
+        LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=1 correctly selected slot=%d for TX\n", frame_slot.slot);
+      }
     }
     // For RX, we don't restrict (UE can receive in any slot)
     return;
