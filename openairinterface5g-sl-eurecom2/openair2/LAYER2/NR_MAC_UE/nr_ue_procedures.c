@@ -222,14 +222,11 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
     create_nr_list(&UE_sched_ctrl->feedback_sl_harq, 16);
     create_nr_list(&UE_sched_ctrl->retrans_sl_harq, 16);
     
-    // 🎯 CRITICAL FIX: Initialize sched_psfch IMMEDIATELY for ALL UEs
-    // This ensures UE2 (and any UE) has feedback structures ready before first RX
-    LOG_I(NR_MAC, "[SL_INIT] Initializing sched_psfch for UE[%d] uid=%d...\n", k, i);
-    ensure_sched_psfch_initialized(mac, mac->sl_info.list[k]);
+    // NOTE: sched_psfch will be initialized AFTER SL config is loaded (in config_ue_sl.c)
+    // because it depends on TDD config and resource pool parameters
     
-    LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d FULLY INITIALIZED (HARQ + PSFCH) ===\n", k, i);
-    LOG_I(NR_MAC, "[SL_INIT]   sched_psfch status: %s\n", 
-          UE_sched_ctrl->sched_psfch ? "INITIALIZED ✓" : "NULL ✗");
+    LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d LISTS INITIALIZED (HARQ ONLY) ===\n", k, i);
+    LOG_I(NR_MAC, "[SL_INIT]   sched_psfch will be initialized after SL config loading\n");
     // LOG_I(NR_MAC, "[SL_INIT]   available_sl_harq: head=%d, len=%d\n", 
     //       UE_sched_ctrl->available_sl_harq.head, UE_sched_ctrl->available_sl_harq.len);
     // LOG_I(NR_MAC, "[SL_INIT]   feedback_sl_harq: head=%d, len=%d\n", 
