@@ -267,7 +267,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
                        mac_rlc_status_resp_t *rlc_status,
                        sl_resource_info_t *resource) {
   uid_t dest_id = UE->uid;
-      // 🔍 DEEP ANALYSIS: Track function entry and destination assignment
+        // 🔍 DEEP ANALYSIS: Track function entry and destination assignment
   LOG_I(NR_MAC, "[SCHED_ANALYSIS] 🚀 nr_schedule_slsch ENTRY: frame=%d.%d\n", frameP, slotP);
   LOG_I(NR_MAC, "[SCHED_ANALYSIS] 🚀   local_srcid=%d, UE->uid=%d, dest_id=%d\n", 
         mac->src_id, UE->uid, dest_id);
@@ -465,7 +465,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   sci2_pdu->rv_index = nr_rv_round_map[cur_harq->round % 4];
   sci2_pdu->source_id = mac->src_id;
   sci2_pdu->dest_id = dest_id;
-      // 🔍 DEEP ANALYSIS: Track destination ID assignment
+        // 🔍 DEEP ANALYSIS: Track destination ID assignment
   LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯 nr_schedule_slsch: frame=%d.%d, local_srcid=%d\n", frameP, slotP, mac->src_id);
   LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯   UE->uid=%d (destination), dest_id=%d\n", UE->uid, dest_id);
   LOG_I(NR_MAC, "[DEST_ANALYSIS] 🎯   Setting sci2_pdu: source_id=%d, dest_id=%d\n", sci2_pdu->source_id, sci2_pdu->dest_id);

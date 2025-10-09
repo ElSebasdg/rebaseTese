@@ -483,7 +483,8 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
                          const NR_SL_BWP_ConfigCommon_r16_t *sl_bwp,
                          const NR_SL_ResourcePool_r16_t *sl_res_pool,
-                         bool sl_has_psfch) {
+                         bool sl_has_psfch,
+                         uint8_t local_src_i) {
 
   nr_sci_pdu_t dummy_sci;
   // Starting RE of the lowest subchannel in a resource where PSCCH
