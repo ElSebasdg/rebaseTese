@@ -150,11 +150,15 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   }
   
   if (k != num_ack_rcvd) {
-    LOG_W(NR_MAC, "[SL_HARQ] WARNING: Mismatch - found %d HARQ processes but received %d ACKs\n", k, num_ack_rcvd);
+    LOG_W(NR_MAC, "[SL_HARQ] WARNING: Mismatch - found %d HARQ processes but received %d ACKs - processing min(%d, %d)\n", 
+          k, num_ack_rcvd, k, num_ack_rcvd);
   }
   
-  LOG_D(NR_MAC, "Found %d matching HARQ processes vs. num. of received acks %d\n", k, num_ack_rcvd);
-  for (int i = 0; i < num_ack_rcvd; i++) {
+  // 🛡️ SAFETY FIX: Use minimum to prevent out-of-bounds access
+  int num_to_process = (k < num_ack_rcvd) ? k : num_ack_rcvd;
+  
+  LOG_D(NR_MAC, "Found %d matching HARQ processes vs. num. of received acks %d (processing %d)\n", k, num_ack_rcvd, num_to_process);
+  for (int i = 0; i < num_to_process; i++) {
     uint8_t ack_nack = rx_slsch_pdu->ack_nack_rcvd[i];
     uint8_t rx_harq_id = matched_harqs[i]->sl_harq_pid;
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
