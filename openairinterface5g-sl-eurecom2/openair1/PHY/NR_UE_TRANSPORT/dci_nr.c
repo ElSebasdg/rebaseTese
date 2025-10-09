@@ -883,14 +883,6 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
                                   fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15,
                                   int16_t *rsrp_dBm) {
 
-  // 🔍 CRITICAL: Log entry into DCI/SCI decoding
-  if (pscch_flag) {
-    LOG_I(NR_PHY, "[DCI_DECODE] 🔍 UE%d Frame.Slot %d.%d: PSCCH DECODING START\n",
-          ue->Mod_id, proc->frame_rx, proc->nr_slot_rx);
-    LOG_I(NR_PHY, "[DCI_DECODE] 🔍   number_of_candidates=%d, BWPStart=%d, rb_offset=%d\n",
-          rel15->number_of_candidates, rel15->BWPStart, rel15->coreset.frequency_domain_resource[0]);
-  }
-
   //int gNB_id = 0;
   int16_t tmp_e[16*108];
   rnti_t n_rnti;
@@ -928,11 +920,6 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
       LOG_D(PHY, "(%i.%i) Trying DCI candidate %d of %d number of candidates, CCE %d (%d), L %d, length %d, format %s\n",
             proc->frame_rx, proc->nr_slot_rx, j, rel15->number_of_candidates, CCEind, e_rx_cand_idx, L, dci_length, nr_dci_format_string[rel15->dci_format_options[k]]);
 
-      // 🔍 CRITICAL: Log scrambling parameters used for unscrambling
-      if (pscch_flag) {
-        LOG_I(NR_PHY, "[DCI_DECODE] 🔍 Unscrambling with: pdcch_dmrs_scrambling_id=%d, scrambling_rnti=%d\n",
-              rel15->coreset.pdcch_dmrs_scrambling_id, rel15->coreset.scrambling_rnti);
-      }
 
       nr_pdcch_unscrambling(&pdcch_e_rx[e_rx_cand_idx], rel15->coreset.scrambling_rnti, pscch_flag==0 ? L*108 : L*18, rel15->coreset.pdcch_dmrs_scrambling_id, tmp_e,0);
 
@@ -952,13 +939,6 @@ uint8_t nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
                                          pscch_flag == 0 ? NR_POLAR_DCI_MESSAGE_TYPE : NR_POLAR_SCI_MESSAGE_TYPE, dci_length, L);
 
       n_rnti = rel15->rnti;
-      
-      // 🔍 CRITICAL: Log CRC check result for PSCCH
-      if (pscch_flag) {
-        LOG_I(NR_PHY, "[DCI_DECODE] 🔍 Candidate %d: CRC=0x%04x, expected_rnti=0x%04x, %s\n",
-              j, crc, n_rnti, (crc == n_rnti) ? "✅ MATCH!" : "❌ NO MATCH");
-      }
-      
       if (crc == 0) LOG_D(PHY, "(%i.%i) %s indication (rnti %x,format %s,n_CCE %d,payloadSize %d,payload %llx )\n",
             proc->frame_rx, proc->nr_slot_rx,pscch_flag==0?"dci":"sci",n_rnti,pscch_flag==0?nr_dci_format_string[rel15->dci_format_options[k]]:"1A",CCEind,dci_length, *(unsigned long long*)dci_estimation);
       if (crc == n_rnti) {

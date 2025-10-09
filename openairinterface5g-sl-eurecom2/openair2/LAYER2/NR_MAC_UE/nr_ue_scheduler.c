@@ -3658,9 +3658,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   SCI2_PDU: source_id=%d, dest_id=%d\n", mac->sci2_pdu.source_id, mac->sci2_pdu.dest_id);
       LOG_I(NR_MAC, "[TX_ANALYSIS] 📡   PDU_HEADER: SRC=%d, DST=%d\n", sl_sch_subheader->SRC, sl_sch_subheader->DST);
       
-
-
-      
       // 🚨 CRITICAL DEBUG: Final PDU verification before RF transmission
       LOG_I(NR_MAC, "[PDU_PRE_RF] 📤 FINAL VERIFICATION: frame=%d.%d, srcid=%d", frame, slot, mac->src_id);
       LOG_I(NR_MAC, "[PDU_PRE_RF] 📤   MEMORY PDU_HEADER at %p: V=%d, R=%d, SRC=%d, DST=%d", 
@@ -3673,19 +3670,19 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       }
       
       // 🔍 CRITICAL: Log header before PDU pointer advancement
-      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
+      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 BEFORE pdu+=header_size: frame=%d.%d\n", frame, slot);
+      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
             sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
+      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
             pdu, cur_harq->transportBlock);
       
       pdu += sizeof(NR_SLSCH_MAC_SUBHEADER_FIXED);
-
-      // 🔍 CRITICAL: Log header after PDU pointer advancement
-      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
-      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
+      
+      // 🔍 CRITICAL: Log header after PDU pointer advancement  
+      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍 AFTER pdu+=header_size: frame=%d.%d\n", frame, slot);
+      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   HEADER_STATUS: V=%d, R=%d, SRC=%d, DST=%d\n", 
             sl_sch_subheader->V, sl_sch_subheader->R, sl_sch_subheader->SRC, sl_sch_subheader->DST);
-      LOG_D(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
+      LOG_I(NR_MAC, "[PDU_POINTER_MOVE] 🔍   pdu_ptr=%p, transportBlock_ptr=%p\n", 
             pdu, cur_harq->transportBlock);
 
 
@@ -3913,22 +3910,17 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
                               const NR_SL_ResourcePool_r16_t *sl_res_pool,
                               sl_nr_rx_config_request_t *rx_config,
                               uint8_t *config_type,
-                              bool sl_has_psfch,
-                              uint8_t local_src_id) {
+                              bool sl_has_psfch) {
 
   *config_type = SL_NR_CONFIG_TYPE_RX_PSCCH;
   rx_config->number_pdus = 1;
   rx_config->sfn = sl_ind->frame_rx;
   rx_config->slot = sl_ind->slot_rx;
   rx_config->sl_rx_config_list[0].pdu_type = *config_type;
-  // fill PSCCH RX PDU
-  LOG_I(NR_MAC, "[UE%d] SL-PSCCH RX SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
-        local_src_id, sl_ind->frame_rx, sl_ind->slot_rx,sl_ind->slot_type);
   config_pscch_pdu_rx(&rx_config->sl_rx_config_list[0].rx_pscch_config_pdu,
                        sl_bwp,
                        sl_res_pool,
-                       sl_has_psfch,
-                       local_src_id);
+                       sl_has_psfch);
 
 
    LOG_D(NR_MAC, "[UE%d] TTI-%d:%d RX PSCCH REQ \n", sl_ind->module_id,sl_ind->frame_rx, sl_ind->slot_rx);
@@ -4189,11 +4181,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
      if (((1<<slot_mod_period) % mask) == 0) rx_allowed=false;
   }
   if (sl_ind->slot_type==SIDELINK_SLOT_TYPE_TX || sl_ind->phy_data==NULL) rx_allowed=false;
-  
-  // 🔍 DIAGNOSTIC LOG: Why is PSCCH RX not being scheduled?
-  LOG_I(NR_MAC, "[PSCCH_RX_DIAG] 🔍 UE%d Frame.Slot %d.%d: rx_allowed=%d, slot_type=%d, phy_data=%p, is_psbch_slot=%d\n",
-        mac->src_id, frame, slot, rx_allowed, sl_ind->slot_type, sl_ind->phy_data, is_psbch_slot);
-  
   static uint16_t prev_slot = 0;
   NR_SL_PSFCH_Config_r16_t *sl_psfch_config = mac->sl_tx_res_pool->sl_PSFCH_Config_r16 ? mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup : NULL;
   const uint8_t psfch_periods[] = {0,1,2,4};
@@ -4201,8 +4188,6 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
                       ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
 
   if ((prev_slot != slot) && rx_allowed && !is_psbch_slot) {
-      LOG_I(NR_MAC, "[PSCCH_RX_DIAG] ✅ UE%d Frame.Slot %d.%d: CALLING nr_ue_sl_pscch_rx_scheduler!\n",
-            mac->src_id, frame, slot);
       frameslot_t fs;
       fs.frame = frame;
       fs.slot = slot;
@@ -4212,13 +4197,10 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       uint16_t phy_map_sz = ((sl_rx_rsrc_pool->phy_sl_bitmap.size << 3) - sl_rx_rsrc_pool->phy_sl_bitmap.bits_unused);
       bool sl_has_psfch = slot_has_psfch(mac, &sl_rx_rsrc_pool->phy_sl_bitmap, rx_abs_slot, psfch_period, phy_map_sz, mac->SL_MAC_PARAMS->sl_TDD_config);
       LOG_D(NR_MAC, "%4d.%2d RX sl_has_psfch %d, psfch_period %ld\n", frame, slot, sl_has_psfch, psfch_period);
-      nr_ue_sl_pscch_rx_scheduler(sl_ind, mac->sl_bwp, mac->sl_rx_res_pool, &rx_config, &tti_action, sl_has_psfch, mac->src_id);
+      nr_ue_sl_pscch_rx_scheduler(sl_ind, mac->sl_bwp, mac->sl_rx_res_pool, &rx_config, &tti_action, sl_has_psfch);
       prev_slot = slot;
   }
-    // log to check conditions before calling pssch scheduler
-  LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
-        frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
-    
+
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
     bool is_resource_allocated = nr_ue_sl_pssch_scheduler(mac, sl_ind, mac->sl_bwp, mac->sl_tx_res_pool, &tx_config, resource, &tti_action);
@@ -4238,7 +4220,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   if (((slot % 20) == 6) && ((frame % 100) == 0)) {
     char stats_output[16000] = {0};
     dump_mac_stats_sl(mac, stats_output, sizeof(stats_output), true);
-    LOG_W(NR_MAC, "Frame.Slot %d.%d\n%s\n", frame, slot, stats_output);
+    LOG_D(NR_MAC, "Frame.Slot %d.%d\n%s\n", frame, slot, stats_output);
   }
 
   if (tti_action == SL_NR_CONFIG_TYPE_RX_PSBCH || tti_action == SL_NR_CONFIG_TYPE_RX_PSCCH || tti_action == SL_NR_CONFIG_TYPE_RX_PSSCH_SCI ||

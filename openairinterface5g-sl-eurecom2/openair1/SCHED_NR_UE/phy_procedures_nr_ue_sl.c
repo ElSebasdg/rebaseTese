@@ -29,7 +29,6 @@
 #include "common/utils/utils.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
 #include "intertask_interface.h"
 #include "T.h"
 #include "PHY/MODULATION/modulation_UE.h"
@@ -303,20 +302,6 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
       slsch->active = false;
       slsch_harq->round = 0;
       LOG_D(NR_PHY, "%4d.%2d SLSCH received ok \n", proc->frame_rx, proc->nr_slot_rx);
-      
-      // 🔍 RX TRACKING: Log successful reception with subchannel details
-      if (slsch_harq->b) {
-        uint8_t *rx_pdu = (uint8_t*)slsch_harq->b;
-        LOG_W(NR_PHY, "[RX_TRACKING] 📥 UE%d RECEIVED: srcid=%d→dstid=%d, frame=%d.%d\n",
-              UE->Mod_id, rx_pdu[1], rx_pdu[2], proc->frame_rx, proc->nr_slot_rx);
-        LOG_W(NR_PHY, "[RX_TRACKING] 📥   PRB_START=%d, RB_SIZE=%d, SUBCHANNEL=%d\n",
-              slsch_harq->ulsch_pdu.rb_start,
-              slsch_harq->ulsch_pdu.rb_size,
-              slsch_harq->ulsch_pdu.rb_start / 25);  // Assuming 25 PRBs per subchannel
-        LOG_W(NR_PHY, "[RX_TRACKING] 📥   TBS=%d bytes, HARQ_PID=%d, MCS=%d\n",
-              slsch_harq->TBS, rdata->harq_pid, slsch_harq->ulsch_pdu.mcs_index);
-      }
-      
       slsch_status.rdata = rdata;
       slsch_status.rxok = true;
       //dumpsig=1;
@@ -579,31 +564,21 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
   else if (phy_data->sl_rx_action == SL_NR_CONFIG_TYPE_RX_PSCCH){
 
     fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15 = &phy_data->phy_pdcch_config.pdcch_config[0];
-    
-    // 🔍 CRITICAL DIAGNOSTIC: Log PSCCH RX configuration
-    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍 UE%d Frame.Slot %d.%d: ENTERING PSCCH RX!\n", 
-          ue->Mod_id, frame_rx, nr_slot_rx);
-    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍   pscch_startrb=%d, pscch_numrbs=%d\n",
-          phy_data->nr_sl_pscch_pdu.pscch_startrb, phy_data->nr_sl_pscch_pdu.pscch_numrbs);
-    
     LOG_D(NR_PHY,"pscch_numsym = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numsym);
-    printf("\n");
-    LOG_I(NR_PHY,"pscch_startrb = %d\n",phy_data->nr_sl_pscch_pdu.pscch_startrb);
+    LOG_D(NR_PHY,"pscch_startrb = %d\n",phy_data->nr_sl_pscch_pdu.pscch_startrb);
     LOG_D(NR_PHY,"pscch_numrbs = %d\n",phy_data->nr_sl_pscch_pdu.pscch_numrbs);
     LOG_D(NR_PHY,"pscch_dmrs_scrambling_id = %d\n",phy_data->nr_sl_pscch_pdu.pscch_dmrs_scrambling_id);
 
-    LOG_I(NR_PHY,"pscch_num_subch= %d\n",phy_data->nr_sl_pscch_pdu.num_subch);
-    LOG_I(NR_PHY,"pscch_subchannel_size = %d\n",phy_data->nr_sl_pscch_pdu.subchannel_size);
-    LOG_I(NR_PHY,"pscch_l_subch = %d\n",phy_data->nr_sl_pscch_pdu.l_subch);
-    LOG_I(NR_PHY,"pscch_pssch_numsym = %d\n",phy_data->nr_sl_pscch_pdu.pssch_numsym);
-    LOG_I(NR_PHY,"sense_pscch = %d\n",phy_data->nr_sl_pscch_pdu.sense_pscch);
+    LOG_D(NR_PHY,"pscch_num_subch= %d\n",phy_data->nr_sl_pscch_pdu.num_subch);
+    LOG_D(NR_PHY,"pscch_subchannel_size = %d\n",phy_data->nr_sl_pscch_pdu.subchannel_size);
+    LOG_D(NR_PHY,"pscch_l_subch = %d\n",phy_data->nr_sl_pscch_pdu.l_subch);
+    LOG_D(NR_PHY,"pscch_pssch_numsym = %d\n",phy_data->nr_sl_pscch_pdu.pssch_numsym);
+    LOG_D(NR_PHY,"sense_pscch = %d\n",phy_data->nr_sl_pscch_pdu.sense_pscch);
 
     rel15->rnti = 0;
     rel15->BWPSize = phy_data->nr_sl_pscch_pdu.num_subch * phy_data->nr_sl_pscch_pdu.subchannel_size;
-    // BWPStart should be the start of the resource pool (PRB 0 in resource pool coordinates)
-    rel15->BWPStart = 0;
+    rel15->BWPStart = phy_data->nr_sl_pscch_pdu.pscch_startrb;
     rel15->SubcarrierSpacing = fp->subcarrier_spacing;
-    // frequency_domain_resource[0] is the rb_offset within the BWP (the absolute PRB start)
     rel15->coreset.frequency_domain_resource[0] = phy_data->nr_sl_pscch_pdu.pscch_startrb;
     rel15->coreset.frequency_domain_resource[1] = phy_data->nr_sl_pscch_pdu.pscch_numrbs;
     rel15->coreset.CoreSetType = NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG;
@@ -613,9 +588,6 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
     rel15->coreset.pdcch_dmrs_scrambling_id = phy_data->nr_sl_pscch_pdu.pscch_dmrs_scrambling_id;
     rel15->coreset.scrambling_rnti = 1010;
     rel15->coreset.tci_present_in_dci = 0;
-    // 🔍 CRITICAL: Log DMRS scrambling configuration
-    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍   RX DMRS: pdcch_dmrs_scrambling_id=%d, scrambling_rnti=%d, rnti=%d\n",
-          rel15->coreset.pdcch_dmrs_scrambling_id, rel15->coreset.scrambling_rnti, rel15->rnti);
 
     rel15->number_of_candidates = phy_data->nr_sl_pscch_pdu.l_subch;
     rel15->num_dci_options = 1;
@@ -649,15 +621,8 @@ void psbch_pscch_pssch_processing(PHY_VARS_NR_UE *ue,
                                   rxdataF,
                                   &rsrp_dBm);
     }
-    
-    // 🔍 CRITICAL: Log channel estimation power
-    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍 UE%d Frame.Slot %d.%d: Channel estimation RSRP=%d dBm\n",
-          ue->Mod_id, frame_rx, nr_slot_rx, rsrp_dBm);
 
-    int dci_cnt = nr_ue_pdcch_procedures(ue, proc, 1, pscch_est_size, pscch_dl_ch_estimates, phy_data, 0, rxdataF, &rsrp_dBm);
-    
-    LOG_I(NR_PHY,"[PSCCH_RX_PHY] 🔍 UE%d Frame.Slot %d.%d: nr_ue_pdcch_procedures returned dci_cnt=%d\n",
-          ue->Mod_id, frame_rx, nr_slot_rx, dci_cnt);
+    nr_ue_pdcch_procedures(ue, proc, 1, pscch_est_size, pscch_dl_ch_estimates, phy_data, 0, rxdataF, &rsrp_dBm);
     LOG_D(NR_PHY,"returned from nr_ue_pdcch_procedures\n");
   }
 
@@ -847,7 +812,7 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS ||
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH) {
     if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS)
-      LOG_I(NR_PHY, "(%d.%d) Sending %s in startPRB: %d\n\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH], phy_data->nr_sl_pssch_pscch_pdu.startrb);
+      LOG_D(NR_PHY, "(%d.%d) Sending %s\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH]);
 
         // 🔍 PHY TX FORENSICS: Verify PDU before transmission
     if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
@@ -860,7 +825,7 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
       
       // 🔍 CRITICAL TX TRACKING: Log what this UE is transmitting
       LOG_W(NR_PHY, "[TX_TRACKING] 📤 UE%d TRANSMITTING: srcid=%d→dstid=%d, frame=%d.%d\n",
-            pdu_ptr[1], pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
+            ue->Mod_id, pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
       LOG_W(NR_PHY, "[TX_TRACKING] 📤   PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n",
             phy_data->nr_sl_pssch_pscch_pdu.startrb, 
             phy_data->nr_sl_pssch_pscch_pdu.l_subch,
@@ -868,20 +833,6 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
     }
 
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;
-    
-    // 🔍 TX POWER LOG: Log transmission details
-    LOG_I(NR_PHY, "[PSCCH_TX_PHY] 📡 UE%d Frame.Slot %d.%d: TX PSCCH with Nid=%d, AMP=%d\n", 
-          ue->Mod_id, frame_tx, slot_tx, phy_data->pscch_Nid, AMP);
-    LOG_I(NR_PHY, "[PSCCH_TX_PHY] 📡   PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n",
-          phy_data->nr_sl_pssch_pscch_pdu.startrb,
-          phy_data->nr_sl_pssch_pscch_pdu.l_subch,
-          phy_data->nr_sl_pssch_pscch_pdu.startrb / 25);
-    
-    LOG_I(NR_PHY, "Tx PSCCH with Nid %i (%d.%d), PRB_START=%d, L_SUBCH=%d, SUBCHANNEL=%d\n", phy_data->pscch_Nid, frame_tx, slot_tx,
-           phy_data->nr_sl_pssch_pscch_pdu.startrb,
-           phy_data->nr_sl_pssch_pscch_pdu.l_subch,
-           phy_data->nr_sl_pssch_pscch_pdu.startrb / 25);  // Assuming 25 PRBs per subchannel
-           
     nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *csi_params = (nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *)&phy_data->nr_sl_pssch_pscch_pdu.nr_sl_csi_rs_pdu;
     csi_params->scramb_id = phy_data->pscch_Nid % (1 << 10);
     for (uint8_t harq_pid = 0; harq_pid < NR_MAX_ULSCH_HARQ_PROCESSES; harq_pid++) {

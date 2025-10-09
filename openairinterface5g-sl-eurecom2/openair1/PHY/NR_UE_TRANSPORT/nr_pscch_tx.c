@@ -62,21 +62,10 @@ uint32_t nr_generate_sci1(const PHY_VARS_NR_UE *ue,
   // for SCI we put the startRB and number of RBs for PSCCH in the first 2 FAPI FreqDomainResource fields
   pdcch_pdu_rel15.FreqDomainResource[0]          = pscch_pssch_pdu->startrb;
   pdcch_pdu_rel15.FreqDomainResource[1]          = pscch_pssch_pdu->pscch_numrbs;
-  LOG_W(NR_PHY, "Generating PSCCH DCI: startRB %d, numRB %d, numSym %d, ScramblingId %d, PayloadSize %d\n",
-        pdcch_pdu_rel15.FreqDomainResource[0],
-        pdcch_pdu_rel15.FreqDomainResource[1],
-        pscch_pssch_pdu->pscch_numsym,
-        pscch_pssch_pdu->pscch_dmrs_scrambling_id,
-        pscch_pssch_pdu->pscch_sci_payload_len);
-        
   pdcch_pdu_rel15.StartSymbolIndex               = 1;
   pdcch_pdu_rel15.DurationSymbols                = pscch_pssch_pdu->pscch_numsym;
   pdcch_pdu_rel15.numDlDci                       = 1;
   pdcch_pdu_rel15.dci_pdu[0].ScramblingId        = pscch_pssch_pdu->pscch_dmrs_scrambling_id;
-  LOG_I(NR_PHY, "[PSCCH_TX] 🔍 TX using DMRS ScramblingId=%d for PSCCH generation\n", 
-        pscch_pssch_pdu->pscch_dmrs_scrambling_id);
-  LOG_I(NR_PHY, "[PSCCH_TX_PHY] 📡 TX PSCCH with Nid=%d\n", 
-        pscch_pssch_pdu->pscch_dmrs_scrambling_id);
   pdcch_pdu_rel15.dci_pdu[0].PayloadSizeBits     = pscch_pssch_pdu->pscch_sci_payload_len;
   // for SCI we put the number of PRBs in the FAPI AggregationLevel field
   pdcch_pdu_rel15.dci_pdu[0].AggregationLevel    = pscch_pssch_pdu->pscch_numrbs*pscch_pssch_pdu->pscch_numsym;

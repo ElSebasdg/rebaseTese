@@ -972,8 +972,6 @@ void sl_ue_phy_init(PHY_VARS_NR_UE *UE) {
     }
   }
 
-  LOG_I(NR_PHY,"[PSCCH_INIT] 🔍 UE initializing PSCCH DMRS with sl_DMRS_ScrambleId=%d\n",
-        UE->SL_UE_PHY_PARAMS.sl_config.sl_DMRS_ScrambleId);
   nr_init_pdcch_dmrs(sl_fp,UE->nr_gold_pscch_dmrs, UE->SL_UE_PHY_PARAMS.sl_config.sl_DMRS_ScrambleId);
 
   // PSCCH DMRS RX

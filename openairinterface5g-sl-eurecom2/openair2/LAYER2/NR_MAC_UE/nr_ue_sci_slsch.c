@@ -227,6 +227,8 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
   *sci_payload = 0;
   *sci2_payload = 0;
 
+  // freq domain allocation starts
+  nr_sl_pssch_pscch_pdu->startrb= *sl_res_pool->sl_StartRB_Subchannel_r16;
   // Number of symbols used for PSCCH
   nr_sl_pssch_pscch_pdu->pscch_numsym = selected_resource ? selected_resource->sl_pscch_sym_len : pscch_tda[*sl_res_pool->sl_PSCCH_Config_r16->choice.setup->sl_TimeResourcePSCCH_r16];
   // Number of  RBS used for PSCCH
@@ -239,30 +241,23 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
   nr_sl_pssch_pscch_pdu->subchannel_size = selected_resource ? selected_resource->sl_subchan_size : subch_to_rb[*sl_res_pool->sl_SubchannelSize_r16];
   //_PSCCH PSSCH TX: Size of subchannels in a PSSCH resource (l_subch)
   AssertFatal(sci_pdu->time_resource_assignment.val == 0, "need to handle a non-zero time_resource_assignment (2 or 3 time hops, N=2,3)\n");
-  
-  // Extract subchannel information from FRIV to calculate correct startrb
-  uint16_t startsc = 0;  // starting subchannel index
   convNRFRIV(sci_pdu->frequency_resource_assignment.val,
              nr_sl_pssch_pscch_pdu->num_subch,
              *sl_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16,
              &nr_sl_pssch_pscch_pdu->l_subch,
-             &startsc, NULL);
-             
-  // freq domain allocation starts - Calculate startrb based on selected subchannel
-  nr_sl_pssch_pscch_pdu->startrb = *sl_res_pool->sl_StartRB_Subchannel_r16 + 
-                                   (startsc * nr_sl_pssch_pscch_pdu->subchannel_size);
+             NULL,NULL);
   //number of symbols for Sidelink transmission on PSSCH/PSCCH
   //(Total Sidelink symbols available - number of psfch symbols configured - 2)
   //Guard symbol + AGC symbol are also excluded
   //Indicates the number of symbols for PSCCH+PSSCH txn
   int num_psfch_symbols = 0;
-  LOG_I(NR_MAC,"[STARTRB_CALC] 📍 CALCULATED startrb=%d (base=%d + subchannel=%d * size=%d), pscch_numsym=%d, pscch_numrbs=%d\n",
+  LOG_D(NR_MAC,"startrb %d, pscch_numsym %d, pscch_numrbs %d,pscch_dmrs_scrambling_id %d,num_subch%d,subchannel_size%d\n",
   nr_sl_pssch_pscch_pdu->startrb,
-  *sl_res_pool->sl_StartRB_Subchannel_r16,
-  startsc,
-  nr_sl_pssch_pscch_pdu->subchannel_size,
   nr_sl_pssch_pscch_pdu->pscch_numsym,
-  nr_sl_pssch_pscch_pdu->pscch_numrbs);
+  nr_sl_pssch_pscch_pdu->pscch_numrbs,
+  nr_sl_pssch_pscch_pdu->pscch_dmrs_scrambling_id,
+  nr_sl_pssch_pscch_pdu->num_subch,
+  nr_sl_pssch_pscch_pdu->subchannel_size);
   if (sl_res_pool->sl_PSFCH_Config_r16 && sl_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16 && *sl_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16>0) {
      // As per 38214 8.1.3.2, num_psfch_symbols can be 3 if psfch_overhead_indication.nbits is 1; FYI psfch_overhead_indication.nbits is set to 1 in case of PSFCH period 2 or 4 in sl_determine_sci_1a_len()
      num_psfch_symbols = 3;
@@ -286,17 +281,17 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 
 	    // frequency resource assignment
 	    fsize = sci_pdu->frequency_resource_assignment.nbits;
-            LOG_I(NR_MAC,"SCI1A: frequency resource assignment (%d,%d) in position %d\n",sci_pdu->frequency_resource_assignment.val,fsize,pos);
+            LOG_D(NR_MAC,"SCI1A: frequency resource assignment (%d,%d) in position %d\n",sci_pdu->frequency_resource_assignment.val,fsize,pos);
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->frequency_resource_assignment.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ -1);
 	    // time-domain-assignment
 	    fsize = sci_pdu->time_resource_assignment.nbits;
-            LOG_I(NR_MAC,"SCI1A: time resource assignment (%d,%d) in position %d\n",sci_pdu->time_resource_assignment.val,fsize,pos);
+            LOG_D(NR_MAC,"SCI1A: time resource assignment (%d,%d) in position %d\n",sci_pdu->time_resource_assignment.val,fsize,pos);
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->time_resource_assignment.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ - 1);
 	    // resource reservation period
             fsize = sci_pdu->resource_reservation_period.nbits;
-            LOG_I(NR_MAC,"SCI1A: resource_reservation_period (%d,%d) in position %d\n",sci_pdu->resource_reservation_period.val,fsize,pos);
+            LOG_D(NR_MAC,"SCI1A: resource_reservation_period (%d,%d) in position %d\n",sci_pdu->resource_reservation_period.val,fsize,pos);
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->resource_reservation_period.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ -1);
 	    // DMRS pattern
@@ -340,14 +335,6 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 	    fsize = sci_pdu->conflict_information_receiver.nbits;
 	    for (int i = 0; i < fsize; i++)
 		   *sci_payload |= (((uint64_t)sci_pdu->conflict_information_receiver.val >> (fsize - i - 1)) & 1) << (sci_size - pos++ -1);
-	    
-	    // 🔍 SCI1A PAYLOAD COMPLETE: Log final encoded payload
-	    LOG_I(NR_MAC, "[SCI1A_PAYLOAD] 🔍 Complete SCI1A payload (%d bits): 0x%016lx\n", sci_size, *sci_payload);
-	    LOG_I(NR_MAC, "[SCI1A_PAYLOAD] 🔍   FRIV=%d (subchannel allocation), TRIV=%d (time resource)\n", 
-	          sci_pdu->frequency_resource_assignment.val, sci_pdu->time_resource_assignment.val);
-	    LOG_I(NR_MAC, "[SCI1A_PAYLOAD] 🔍   Priority=%d, MCS=%d, Reserved=%d (sync bit)\n",
-	          sci_pdu->priority, sci_pdu->mcs, sci_pdu->reserved.val);
-	    
 	    break;
     default:
             AssertFatal(1==0,"Unknown format1 %d\n",format1);
@@ -496,27 +483,12 @@ void fill_pssch_pscch_pdu(sl_nr_ue_mac_params_t *sl_mac_params,
 void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
                          const NR_SL_BWP_ConfigCommon_r16_t *sl_bwp,
                          const NR_SL_ResourcePool_r16_t *sl_res_pool,
-                         bool sl_has_psfch,
-                         uint8_t local_src_id) {
+                         bool sl_has_psfch) {
 
   nr_sci_pdu_t dummy_sci;
   // Starting RE of the lowest subchannel in a resource where PSCCH
   // freq domain allocation starts
-  
-  // 🎯 BLIND DECODING SUBCHANNEL SELECTION: UE srcid=0 decodes subchannel 1
-  uint16_t base_startrb = *sl_res_pool->sl_StartRB_Subchannel_r16;
-  uint16_t subchannel_size = subch_to_rb[*sl_res_pool->sl_SubchannelSize_r16];
-  uint8_t target_subchannel = (local_src_id == 0) ? 1 : 0;  // srcid=0 decodes subchannel 1, others decode subchannel 0
-  
-  nr_sl_pscch_pdu->pscch_startrb = base_startrb + (target_subchannel * subchannel_size);
-  
-  LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍 UE srcid=%d will blind decode subchannel=%d (PRB_start=%d)\n",
-        local_src_id, target_subchannel, nr_sl_pscch_pdu->pscch_startrb);
-  // LOG_I(NR_MAC, "[BLIND_DECODE_SUBCHANNEL] 🔍   base_startrb=%d + (subchannel=%d * size=%d) = %d\n",
-  //       base_startrb, target_subchannel, subchannel_size, nr_sl_pscch_pdu->pscch_startrb);
-
-
-
+  nr_sl_pscch_pdu->pscch_startrb=*sl_res_pool->sl_StartRB_Subchannel_r16;
   // Number of symbols used for PSCCH
   nr_sl_pscch_pdu->pscch_numsym=pscch_tda[*sl_res_pool->sl_PSCCH_Config_r16->choice.setup->sl_TimeResourcePSCCH_r16];
   // Number of  RBS used for PSCCH
@@ -530,9 +502,6 @@ void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
   nr_sl_pscch_pdu->subchannel_size=subch_to_rb[*sl_res_pool->sl_SubchannelSize_r16];
   // PSCCH PSSCH RX: this is set to 1 - Blind decoding for SCI1A done on every subchannel
   // PSCCH SENSING: this is equal to number of subchannels forming a resource.
-  LOG_I(NR_MAC,"[BLIND_DECODE_SUBCHANNEL] 🔍 num_subch=%d, subchannel_size=%d\n",
-        nr_sl_pscch_pdu->num_subch, nr_sl_pscch_pdu->subchannel_size);
-
 
   nr_sl_pscch_pdu->l_subch=1;
   //number of symbols for Sidelink transmission on PSSCH/PSCCH
@@ -552,7 +521,7 @@ void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
   // as part of TX pool sensing procedure.
   nr_sl_pscch_pdu->sense_pscch=0;
 
-  LOG_I(NR_MAC,"Programming PSCCH reception (sci_1a_length %d)\n",nr_sl_pscch_pdu->sci_1a_length);
+  LOG_D(NR_MAC,"Programming PSCCH reception (sci_1a_length %d)\n",nr_sl_pscch_pdu->sci_1a_length);
 
 }
 
@@ -656,10 +625,9 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
   const NR_SL_BWP_ConfigCommon_r16_t *sl_bwp = mac->sl_bwp;
   const NR_SL_ResourcePool_r16_t *sl_res_pool = mac->sl_rx_res_pool;
 
-  LOG_I(NR_MAC,"%4d.%2d Received sci indication (sci format %d, Nid %x, subChannelIndex %d, payloadSize %d,payload %llx) pscch_rsrp %d\n",
+  LOG_D(NR_MAC,"%4d.%2d Received sci indication (sci format %d, Nid %x, subChannelIndex %d, payloadSize %d,payload %llx) pscch_rsrp %d\n",
         frame, slot, sci->sci_format_type,sci->Nid,sci->subch_index,sci->sci_payloadlen,*(unsigned long long*)sci->sci_payloadBits, sci->pscch_rsrp);
   AssertFatal(sci->sci_format_type == SL_SCI_FORMAT_1A_ON_PSCCH, "need to have format 1A here only\n");
-  LOG_I(NR_MAC, "[SCI1A_EXTRACT] 🔍 Extracting PSCCH PDU fields...\n");
   extract_pscch_pdu((uint64_t *)sci->sci_payloadBits, sci->sci_payloadlen,sl_bwp, sl_res_pool, sci_pdu);
 
   uint16_t l_subch;
@@ -695,20 +663,9 @@ int nr_ue_process_sci1_indication_pdu(NR_UE_MAC_INST_t *mac,module_id_t mod_id,f
   if (mac->sl_sensing_data.size > 1)
     remove_old_sensing_data(&sensing_data.frame_slot, sl_mac->sl_RxPool[0]->t0, &mac->sl_sensing_data, sl_mac);
 
-    LOG_E(NR_MAC,"UE%d Sensing data: frame %d, slot %d, rsrp %d, rsvp %d, subch_start %d, subch_len %d\n",
-         mod_id,
-         sensing_data.frame_slot.frame,
-         sensing_data.frame_slot.slot,
-         sensing_data.sl_rsrp,
-         sensing_data.rsvp,
-         sensing_data.subch_start,
-         sensing_data.subch_len);
-
   if (sci_pdu->reserved.val && !mac->is_synced) {
-    LOG_I(NR_MAC, "[SYNC_DEBUG] 🔧 Setting is_synced=true via SCI reserved bit\n");
-    LOG_I(NR_MAC, "[SYNC_DEBUG] 📍 Location: nr_ue_sci_slsch.c line ~679, src_id=%d\n", mac->src_id);
     mac->is_synced = true;
-    LOG_I(NR_PHY, "[SYNC_DEBUG] ✅ Nearby UE is synced now!!! is_synced=%d\n", mac->is_synced);
+    LOG_D(NR_PHY, "Nearby UE is synced now!!!\n");
   }
   LOG_D(NR_MAC,"SCI1A: frequency_resource %d, time_resource %d, dmrs_pattern %d, beta_offset_indicator %d, mcs %d, number_of_dmrs_port %d, 2nd stage SCI format %d\n",
         sci_pdu->frequency_resource_assignment.val,sci_pdu->time_resource_assignment.val,sci_pdu->dmrs_pattern.val,sci_pdu->beta_offset_indicator,sci_pdu->mcs,sci_pdu->number_of_dmrs_port,sci_pdu->second_stage_sci_format);

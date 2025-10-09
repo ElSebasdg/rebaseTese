@@ -555,8 +555,7 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
                                  const NR_SL_ResourcePool_r16_t *sl_res_pool,
                                  sl_nr_rx_config_request_t *rx_config,
                                  uint8_t *config_type,
-                                 bool sl_has_psfch,
-                                 uint8_t local_src_id);
+                                 bool sl_has_psfch);
 
 void nr_ue_sl_csi_rs_scheduler(NR_UE_MAC_INST_t *mac,
                                uint8_t scs,
@@ -587,8 +586,7 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
 void config_pscch_pdu_rx(sl_nr_rx_config_pscch_pdu_t *nr_sl_pscch_pdu,
                          const NR_SL_BWP_ConfigCommon_r16_t *sl_bwp,
                          const NR_SL_ResourcePool_r16_t *sl_res_pool,
-                         bool sl_has_psfch,
-                         uint8_t local_src_id);
+                         bool sl_has_psfch);
 
 int config_pssch_sci_pdu_rx(sl_nr_rx_config_pssch_sci_pdu_t *nr_sl_pssch_sci_pdu,
                              nr_sci_format_t sci2_format,
