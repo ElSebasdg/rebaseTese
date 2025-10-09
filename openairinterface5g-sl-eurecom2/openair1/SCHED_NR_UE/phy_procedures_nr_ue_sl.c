@@ -241,7 +241,17 @@ int nr_slsch_procedures(PHY_VARS_NR_UE *ue, int frame_rx, int slot_rx, int SLSCH
   LOG_D(NR_PHY, "%4d.%2d Calling nr_ulsch_decoding\n", frame_rx, slot_rx);
   int nbDecode =
       nr_ulsch_decoding(NULL, ue, SLSCH_id, ue->pssch_vars[SLSCH_id].llr, fp, &pusch_pdu, frame_rx, slot_rx, harq_pid, G, proc, phy_data, ack_nack_rcvd, num_acks);
-  return nbDecode;
+  
+  // 🔍 PHY RX FORENSICS: Log after decoding
+  LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍 AFTER ULSCH DECODE: frame=%d.%d, nbDecode=%d \n", 
+        frame_rx, slot_rx, nbDecode);
+  if (ue->slsch[SLSCH_id].harq_process && ue->slsch[SLSCH_id].harq_process->b) {
+    uint8_t *decoded_pdu = (uint8_t*)ue->slsch[SLSCH_id].harq_process->b;
+    LOG_I(NR_PHY, "[PHY_RX_FORENSICS] 🔍   DECODED PDU_HEADER: V=%d, R=%d, SRC=%d, DST=%d \n", 
+          (decoded_pdu[0] >> 4) & 0xF, (decoded_pdu[0] >> 3) & 0x1, decoded_pdu[1], decoded_pdu[2]);
+  }
+  
+      return nbDecode;
 }
 
 void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_proc_t *proc,nr_phy_data_t *phy_data, int8_t *ack_nack_rcvd, uint8_t num_acks)
@@ -797,6 +807,12 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
            phy_data->sl_tx_action == SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH) {
     if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS)
       LOG_D(NR_PHY, "(%d.%d) Sending %s\n", frame_tx, slot_tx, sl_tx_actions[phy_data->sl_tx_action - SL_NR_CONFIG_TYPE_TX_PSBCH]);
+
+    if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
+      uint8_t *pdu_ptr = (uint8_t*)phy_data->nr_sl_pssch_pscch_pdu.slsch_payload;
+      LOG_W(NR_PHY, "[TX_TRACKING] 📤 UE%d TRANSMITTING: srcid=%d→dstid=%d, frame=%d.%d\n",pdu_ptr[1], pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
+
+    }
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;
     nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *csi_params = (nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *)&phy_data->nr_sl_pssch_pscch_pdu.nr_sl_csi_rs_pdu;
     csi_params->scramb_id = phy_data->pscch_Nid % (1 << 10);
