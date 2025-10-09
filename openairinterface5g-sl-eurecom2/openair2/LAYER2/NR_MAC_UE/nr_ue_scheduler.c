@@ -3534,6 +3534,13 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
+    // SYNC_REF should not process itself for PSSCH/PSCCH data transmission
+    // It only transmits PSBCH (handled separately) and receives from other UEs
+    if (get_nrUE_params()->sync_ref && UE->uid == mac->src_id) {
+      LOG_D(NR_MAC, "[SYNC_REF_SKIP] ⏭️  Skipping self-processing for SYNC_REF uid=%d\n", UE->uid);
+      continue;
+    }
+
     LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d)\n", 
           i, UE->uid, mac->src_id);
 
