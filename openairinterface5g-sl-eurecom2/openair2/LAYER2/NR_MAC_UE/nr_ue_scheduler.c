@@ -3469,10 +3469,20 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   }
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
-  // 🎯 SPECIFIC SLOT RESTRICTION: UE with src_id=1 transmits ONLY in slots 16 and 17
+  // 🎯 SPECIFIC SLOT RESTRICTIONS: Per-UE slot allocation
   if (mac->src_id == 1) {
+    // UE with src_id=1 transmits ONLY in slots 16 and 17
     if (slot != 16 && slot != 17) {
       LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 16,17 allowed)\n",
+            mac->src_id, slot);
+      return is_resource_allocated;
+    }
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
+          mac->src_id, slot);
+  } else if (mac->src_id == 2) {
+    // UE with src_id=2 transmits ONLY in slots 18 and 19
+    if (slot != 18 && slot != 19) {
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 18,19 allowed)\n",
             mac->src_id, slot);
       return is_resource_allocated;
     }
@@ -4548,15 +4558,28 @@ void validate_selected_sl_slot(bool tx, bool rx, NR_TDD_UL_DL_ConfigCommon_t *co
   AssertFatal(conf->pattern1.nrofUplinkSlots == 4 && conf->pattern1.nrofDownlinkSlots == 6,
               "Invalid configuration set. Please update the nrofUplinkSlots to 4 and nrofDownlinkSlots to 6.\n");
   
-  // 🎯 SPECIFIC SLOT RESTRICTION: UE with src_id=1 only uses slots 16 and 17
-  // This validation is NON-FATAL - just logs warnings
+  // 🎯 SPECIFIC SLOT RESTRICTIONS: Per-UE slot validation
+  // These validations are NON-FATAL - just log warnings
   if (src_id == 1) {
+    // UE with src_id=1 only uses slots 16 and 17
     if (tx) {
       if (!(frame_slot.slot == 16 || frame_slot.slot == 17)) {
         LOG_W(NR_MAC, "[SLOT_RESTRICTION] ⚠️ UE src_id=1 selected slot=%d for TX (should only use 16,17). "
                       "This slot will be IGNORED by the scheduler.\n", frame_slot.slot);
       } else {
         LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=1 correctly selected slot=%d for TX\n", frame_slot.slot);
+      }
+    }
+    // For RX, we don't restrict (UE can receive in any slot)
+    return;
+  } else if (src_id == 2) {
+    // UE with src_id=2 only uses slots 18 and 19
+    if (tx) {
+      if (!(frame_slot.slot == 18 || frame_slot.slot == 19)) {
+        LOG_W(NR_MAC, "[SLOT_RESTRICTION] ⚠️ UE src_id=2 selected slot=%d for TX (should only use 18,19). "
+                      "This slot will be IGNORED by the scheduler.\n", frame_slot.slot);
+      } else {
+        LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=2 correctly selected slot=%d for TX\n", frame_slot.slot);
       }
     }
     // For RX, we don't restrict (UE can receive in any slot)
