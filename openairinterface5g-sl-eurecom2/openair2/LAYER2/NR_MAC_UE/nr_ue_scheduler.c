@@ -3470,33 +3470,33 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
   // 🎯 SPECIFIC SLOT RESTRICTIONS: Per-UE slot allocation
+  // ==================================================================================
+  // SLOT ALLOCATION TABLE:
+  //   Syncref (src_id=0): Slots 6,7 → dest_id=1 (UE1)  |  Slots 8,9 → dest_id=2 (UE2)
+  //   UE1     (src_id=1): Slots 16,17 → any destination
+  //   UE2     (src_id=2): Slots 18,19 → any destination
+  // ==================================================================================
   if (mac->src_id == 0) {
-    // Syncref (src_id=0) transmits to UE1 in slots 6,7 and to UE2 in slots 8,9
+    // Syncref: Slots 6,7 for UE1 + Slots 8,9 for UE2 (destination filtering applied later)
     if (slot != 6 && slot != 7 && slot != 8 && slot != 9) {
-      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ Syncref src_id=%d blocked from transmitting in slot %d (only 6,7,8,9 allowed for dedicated TX)\n",
-            mac->src_id, slot);
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ Syncref blocked in slot %d (allowed: 6,7→UE1 | 8,9→UE2)\n", slot);
       return is_resource_allocated;
     }
-    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ Syncref src_id=%d allowed to transmit in slot %d (dedicated TX)\n",
-          mac->src_id, slot);
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ Syncref slot %d allowed (6,7→UE1 | 8,9→UE2)\n", slot);
   } else if (mac->src_id == 1) {
-    // UE with src_id=1 transmits ONLY in slots 16 and 17
+    // UE1 transmits in slots 16,17
     if (slot != 16 && slot != 17) {
-      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 16,17 allowed)\n",
-            mac->src_id, slot);
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE1 blocked in slot %d (only 16,17 allowed)\n", slot);
       return is_resource_allocated;
     }
-    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
-          mac->src_id, slot);
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE1 slot %d allowed\n", slot);
   } else if (mac->src_id == 2) {
-    // UE with src_id=2 transmits ONLY in slots 18 and 19 (receives from Syncref in slots 8,9)
+    // UE2 transmits in slots 18,19 (receives from Syncref in slots 8,9)
     if (slot != 18 && slot != 19) {
-      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 18,19 allowed)\n",
-            mac->src_id, slot);
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE2 blocked in slot %d (only 18,19 allowed)\n", slot);
       return is_resource_allocated;
     }
-    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
-          mac->src_id, slot);
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE2 slot %d allowed\n", slot);
   }
 
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
@@ -3539,27 +3539,32 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
-    // 🎯 DESTINATION FILTERING: Syncref dedicated transmissions
+    // 🎯 DESTINATION FILTERING: Syncref dedicated transmissions per slot
+    // ==================================================================================
+    // SYNCREF DESTINATION MAPPING:
+    //   - Slots 6,7  → ONLY dest_id=1 (UE1)  [UE->uid must be 1]
+    //   - Slots 8,9  → ONLY dest_id=2 (UE2)  [UE->uid must be 2]
+    // ==================================================================================
     if (mac->src_id == 0) {
       // Slots 6,7: transmit ONLY to UE1 (dest_id=1)
       if ((slot == 6 || slot == 7)) {
         if (UE->uid != 1) {
-          LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d skipping UE->uid=%d (slots 6,7 dedicated to dest_id=1)\n",
-                mac->src_id, slot, UE->uid);
+          LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref slot %d: Skipping UE->uid=%d (ONLY dest_id=1 allowed in slots 6,7)\n",
+                slot, UE->uid);
           continue;
         }
-        LOG_I(NR_MAC, "[DEST_FILTER] ✅ Syncref src_id=%d in slot %d processing UE->uid=%d (dedicated transmission to UE1)\n",
-              mac->src_id, slot, UE->uid);
+        LOG_I(NR_MAC, "[DEST_FILTER] ✅ Syncref slot %d: Processing dest_id=%d (UE1) - DEDICATED CHANNEL\n",
+              slot, UE->uid);
       }
       // Slots 8,9: transmit ONLY to UE2 (dest_id=2)
       else if ((slot == 8 || slot == 9)) {
         if (UE->uid != 2) {
-          LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d skipping UE->uid=%d (slots 8,9 dedicated to dest_id=2)\n",
-                mac->src_id, slot, UE->uid);
+          LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref slot %d: Skipping UE->uid=%d (ONLY dest_id=2 allowed in slots 8,9)\n",
+                slot, UE->uid);
           continue;
         }
-        LOG_I(NR_MAC, "[DEST_FILTER] ✅ Syncref src_id=%d in slot %d processing UE->uid=%d (dedicated transmission to UE2)\n",
-              mac->src_id, slot, UE->uid);
+        LOG_I(NR_MAC, "[DEST_FILTER] ✅ Syncref slot %d: Processing dest_id=%d (UE2) - DEDICATED CHANNEL\n",
+              slot, UE->uid);
       }
     }
 
