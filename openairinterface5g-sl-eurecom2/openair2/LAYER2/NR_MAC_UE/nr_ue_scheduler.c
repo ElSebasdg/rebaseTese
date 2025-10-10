@@ -3470,7 +3470,16 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
   // 🎯 SPECIFIC SLOT RESTRICTIONS: Per-UE slot allocation
-  if (mac->src_id == 1) {
+  if (mac->src_id == 0) {
+    // Syncref (src_id=0) transmits ONLY to UE1 in slots 6 and 7
+    if (slot != 6 && slot != 7) {
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ Syncref src_id=%d blocked from transmitting in slot %d (only 6,7 allowed for dedicated TX to UE1)\n",
+            mac->src_id, slot);
+      return is_resource_allocated;
+    }
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ Syncref src_id=%d allowed to transmit in slot %d (dedicated to UE1)\n",
+          mac->src_id, slot);
+  } else if (mac->src_id == 1) {
     // UE with src_id=1 transmits ONLY in slots 16 and 17
     if (slot != 16 && slot != 17) {
       LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 16,17 allowed)\n",
@@ -3488,10 +3497,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     }
     LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
           mac->src_id, slot);
-  } else {
-    // Original slot separation logic for other UEs
-    if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
-    if (slot < 10 && !get_nrUE_params()->sync_ref) return is_resource_allocated;
   }
 
   LOG_D(NR_MAC,"[UE%d] SL-PSSCH SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
