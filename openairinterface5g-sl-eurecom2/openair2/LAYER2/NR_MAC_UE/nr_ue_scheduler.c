@@ -3469,33 +3469,25 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   }
   if (sl_ind->slot_type != SIDELINK_SLOT_TYPE_TX) return is_resource_allocated;
 
-  // 🎯 TDD-BASED SLOT ALLOCATION: Sync Ref uses slots 6,7,8,9 according to TDD configuration
-  // - Sync Reference (src_id=0): transmits to UE1 in slots 6-7, to UE2 in slots 8-9
-  // - UE1 (src_id=1): receives in slots 6-7 (blocked from TX - only sync ref transmits)
-  // - UE2 (src_id=2): receives in slots 8-9 (blocked from TX - only sync ref transmits)
-  // The scheduler decides based on slot and source_id combination
-  
-  if (mac->src_id == 0 && get_nrUE_params()->sync_ref) {
-    // Sync Reference (src_id=0) can transmit in slots 6, 7, 8, 9
-    if (slot != 6 && slot != 7 && slot != 8 && slot != 9) {
-      LOG_D(NR_MAC, "[TDD_SLOT] ⛔ SYNC_REF src_id=%d blocked from TX in slot %d (only 6,7,8,9 allowed per TDD config)\n",
+  // 🎯 SPECIFIC SLOT RESTRICTIONS: Per-UE slot allocation
+  if (mac->src_id == 1) {
+    // UE with src_id=1 transmits ONLY in slots 16 and 17
+    if (slot != 16 && slot != 17) {
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 16,17 allowed)\n",
             mac->src_id, slot);
       return is_resource_allocated;
     }
-    LOG_I(NR_MAC, "[TDD_SLOT] ✅ SYNC_REF src_id=%d allowed to TX in slot %d\n",
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
           mac->src_id, slot);
-  } else if (mac->src_id == 1) {
-    // UE1 with src_id=1: CANNOT transmit (only sync ref transmits to UE1 in slots 6-7)
-    // UE1 only receives in slots 6-7, so block all TX attempts
-    LOG_D(NR_MAC, "[TDD_SLOT] ⛔ UE1 src_id=%d blocked from TX in slot %d (UE1 only receives from sync ref in slots 6-7)\n",
-          mac->src_id, slot);
-    return is_resource_allocated;
   } else if (mac->src_id == 2) {
-    // UE2 with src_id=2: CANNOT transmit (only sync ref transmits to UE2 in slots 8-9)
-    // UE2 only receives in slots 8-9, so block all TX attempts
-    LOG_D(NR_MAC, "[TDD_SLOT] ⛔ UE2 src_id=%d blocked from TX in slot %d (UE2 only receives from sync ref in slots 8-9)\n",
+    // UE with src_id=2 transmits ONLY in slots 18 and 19
+    if (slot != 18 && slot != 19) {
+      LOG_D(NR_MAC, "[SLOT_RESTRICTION] ⛔ UE src_id=%d blocked from transmitting in slot %d (only 18,19 allowed)\n",
+            mac->src_id, slot);
+      return is_resource_allocated;
+    }
+    LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
           mac->src_id, slot);
-    return is_resource_allocated;
   } else {
     // Original slot separation logic for other UEs
     if (slot > 9 && get_nrUE_params()->sync_ref) return is_resource_allocated;
@@ -3533,22 +3525,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
 
   preprocess(mac, frame, slot, &feedback_frame, &feedback_slot, sl_bwp, configured_PSFCH);
 
-  // 🎯 TDD-BASED DYNAMIC UE SELECTION: Scheduler decides which UE to process based on current slot
-  // Sync Reference behavior based on slot:
-  //   - Slots 6-7: Process UE1 (uid=1) only
-  //   - Slots 8-9: Process UE2 (uid=2) only
-  int target_uid = -1; // -1 means process all UEs (default behavior)
-  
-  if (mac->src_id == 0 && get_nrUE_params()->sync_ref) {
-    if (slot == 6 || slot == 7) {
-      target_uid = 1; // Only process UE1 in slots 6-7
-      LOG_I(NR_MAC, "[TDD_SCHEDULER] 🎯 Slot %d: Sync Ref will TX to UE1 (uid=1) only\n", slot);
-    } else if (slot == 8 || slot == 9) {
-      target_uid = 2; // Only process UE2 in slots 8-9
-      LOG_I(NR_MAC, "[TDD_SCHEDULER] 🎯 Slot %d: Sync Ref will TX to UE2 (uid=2) only\n", slot);
-    }
-  }
-
   for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
@@ -3558,15 +3534,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
-    // 🎯 TDD-BASED FILTERING: Skip UEs that don't match the target_uid for this slot
-    if (target_uid != -1 && UE->uid != target_uid) {
-      LOG_D(NR_MAC, "[TDD_SCHEDULER] ⏭️  Slot %d: Skipping UE->uid=%d (target is uid=%d)\n", 
-            slot, UE->uid, target_uid);
-      continue;
-    }
-
-    LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d, slot=%d)\n", 
-          i, UE->uid, mac->src_id, slot);
+    LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d)\n", 
+          i, UE->uid, mac->src_id);
 
     NR_mac_dir_stats_t *sl_mac_stats = &UE->mac_sl_stats.sl;
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
