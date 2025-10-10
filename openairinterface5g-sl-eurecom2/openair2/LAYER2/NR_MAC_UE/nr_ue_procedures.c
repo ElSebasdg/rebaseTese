@@ -222,11 +222,7 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
     create_nr_list(&UE_sched_ctrl->feedback_sl_harq, 16);
     create_nr_list(&UE_sched_ctrl->retrans_sl_harq, 16);
     
-    // NOTE: sched_psfch will be initialized AFTER SL config is loaded (in config_ue_sl.c)
-    // because it depends on TDD config and resource pool parameters
-    
-    LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d LISTS INITIALIZED (HARQ ONLY) ===\n", k, i);
-    LOG_I(NR_MAC, "[SL_INIT]   sched_psfch will be initialized after SL config loading\n");
+    LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d LISTS INITIALIZED ===\n", k, i);
     // LOG_I(NR_MAC, "[SL_INIT]   available_sl_harq: head=%d, len=%d\n", 
     //       UE_sched_ctrl->available_sl_harq.head, UE_sched_ctrl->available_sl_harq.len);
     // LOG_I(NR_MAC, "[SL_INIT]   feedback_sl_harq: head=%d, len=%d\n", 

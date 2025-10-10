@@ -568,10 +568,6 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     } else {
       LOG_E(NR_MAC, "[SL_ERROR] No SL UE available for sched_psfch initialization!\n");
     }
-    
-    // NOTE: sched_psfch initialization is now DEFERRED until first RX from each UE
-    // This ensures sched_psfch=YES only for UEs that are actually connected/active
-    LOG_I(NR_MAC, "[SL_SYNCREF_INIT] sched_psfch will be initialized dynamically on first RX from each UE\n");
 
     int nr_slots_period = nr_slots_frame;
     int nr_ulstart_slot = 0;
@@ -801,10 +797,6 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
     } else {
       LOG_E(NR_MAC, "[SL_ERROR] No SL UE available for sched_psfch initialization (nearby UE)!\n");
     }
-    
-    // NOTE: sched_psfch initialization is now DEFERRED until first RX from each UE
-    // This ensures sched_psfch=YES only for UEs that are actually connected/active
-    LOG_I(NR_MAC, "[SL_CONFIG_INIT] sched_psfch will be initialized dynamically on first RX from each UE\n");
 
     LOG_I(MAC, "SIDELINK CONFIGs: tdd config period:%d, mu:%ld, DLslots:%ld,ULslots:%ld Mixedslotsym DL:UL %ld:%ld\n",
                             sl_config->tdd_table.tdd_period, sl_mac->sl_TDD_config->referenceSubcarrierSpacing,

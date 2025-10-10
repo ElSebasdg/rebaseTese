@@ -150,15 +150,11 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   }
   
   if (k != num_ack_rcvd) {
-    LOG_W(NR_MAC, "[SL_HARQ] WARNING: Mismatch - found %d HARQ processes but received %d ACKs - processing min(%d, %d)\n", 
-          k, num_ack_rcvd, k, num_ack_rcvd);
+    LOG_W(NR_MAC, "[SL_HARQ] WARNING: Mismatch - found %d HARQ processes but received %d ACKs\n", k, num_ack_rcvd);
   }
   
-  // 🛡️ SAFETY FIX: Use minimum to prevent out-of-bounds access
-  int num_to_process = (k < num_ack_rcvd) ? k : num_ack_rcvd;
-  
-  LOG_D(NR_MAC, "Found %d matching HARQ processes vs. num. of received acks %d (processing %d)\n", k, num_ack_rcvd, num_to_process);
-  for (int i = 0; i < num_to_process; i++) {
+  LOG_D(NR_MAC, "Found %d matching HARQ processes vs. num. of received acks %d\n", k, num_ack_rcvd);
+  for (int i = 0; i < num_ack_rcvd; i++) {
     uint8_t ack_nack = rx_slsch_pdu->ack_nack_rcvd[i];
     uint8_t rx_harq_id = matched_harqs[i]->sl_harq_pid;
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
@@ -388,8 +384,8 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   uint8_t n_start_subch1 = (mac->src_id % total_available_subch); // Distribute UEs across available subchannels
   uint8_t n_start_subch2 = 0; // Keep as 0 for single resource allocation
   
-  //LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
-        //mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
+  LOG_I(NR_MAC, "[SL_SUBCHANNEL_DIVERSIFICATION] UE srcid=%d using subchannel_start=%d (total_subch=%d)\n", 
+        mac->src_id, n_start_subch1, total_available_subch);// represent starting sub-channel index for the second resource and third resource;
                                                   // as we are considering only 1 subchannel, so we have initialized these variables with zeros.
   // Fill SCI1A
   sci_pdu->priority = 0;

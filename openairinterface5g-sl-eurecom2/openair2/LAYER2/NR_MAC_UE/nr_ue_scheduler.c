@@ -3534,13 +3534,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
-    // SYNC_REF should not process itself for PSSCH/PSCCH data transmission
-    // It only transmits PSBCH (handled separately) and receives from other UEs
-    if (get_nrUE_params()->sync_ref && UE->uid == mac->src_id) {
-      LOG_D(NR_MAC, "[SYNC_REF_SKIP] ⏭️  Skipping self-processing for SYNC_REF uid=%d\n", UE->uid);
-      continue;
-    }
-
     LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d)\n", 
           i, UE->uid, mac->src_id);
 
@@ -3641,12 +3634,6 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
           cur_harq->round,
           cur_harq->ndi,
           sched_ctrl->sched_sl_bytes);
-    
-    // 🛡️ CONFLICT RESOLUTION: Stop after processing first UE to prevent overwriting tx_config_list[0]
-    // Since SL_NR_TX_CONFIG_LIST_NUM==1, we can only send one PDU per TTI
-    is_resource_allocated = true;
-    LOG_I(NR_MAC, "[CONFLICT_FIX] ✅ Processed UE uid=%d, breaking loop to prevent config_list[0] overwrite\n", UE->uid);
-    break;  // Exit loop after first successful scheduling
 
     /* Statistics */
     AssertFatal(cur_harq->round < sl_mac_params->sl_bler.harq_round_max, "Indexing ulsch_rounds[%d] is out of bounds for max harq round %d\n", cur_harq->round, sl_mac_params->sl_bler.harq_round_max);

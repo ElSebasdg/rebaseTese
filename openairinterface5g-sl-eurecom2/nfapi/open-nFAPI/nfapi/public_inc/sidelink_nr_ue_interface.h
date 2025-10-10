@@ -299,11 +299,6 @@ typedef struct sl_nr_tx_config_pscch_pssch_pdu {
   uint32_t tb_size;
   uint16_t target_coderate;
   uint8_t  harq_pid;
-  
-  // Source and destination IDs for logging/debugging (from SCI2)
-  uint8_t  source_id;
-  uint16_t dest_id;
-  
   uint8_t  mod_order;
   uint8_t  mcs;
   uint8_t  mcs_table;
