@@ -3539,6 +3539,17 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
+    // 🎯 DESTINATION FILTERING: Syncref (src_id=0) on slots 6,7 transmits ONLY to UE1 (dest_id=1)
+    if (mac->src_id == 0 && (slot == 6 || slot == 7)) {
+      if (UE->uid != 1) {
+        LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d skipping UE->uid=%d (only transmitting to dest_id=1)\n",
+              mac->src_id, slot, UE->uid);
+        continue;
+      }
+      LOG_I(NR_MAC, "[DEST_FILTER] ✅ Syncref src_id=%d in slot %d processing UE->uid=%d (dedicated transmission to UE1)\n",
+            mac->src_id, slot, UE->uid);
+    }
+
     LOG_I(NR_MAC, "[LOOP_ANALYSIS] 🔄 Loop iteration %d: Processing UE->uid=%d (src_id=%d)\n", 
           i, UE->uid, mac->src_id);
 
