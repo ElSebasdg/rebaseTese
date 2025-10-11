@@ -3997,6 +3997,50 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
               "CRITICAL: pdu_type mismatch! config_type=%d != pdu_type=%d\n",
               *config_type, rx_config->sl_rx_config_list[0].pdu_type);
   
+  // 🎯 RX SLOT FILTERING: Each UE should only receive in specific slots
+  int rx_slot = sl_ind->slot_rx;
+  bool allow_rx = false;
+  
+  if (local_src_id == 0) {
+    // Syncref (src_id=0): Receives from UE1 in slots 16,17 and UE2 in slots 18,19
+    if (rx_slot == 16 || rx_slot == 17 || rx_slot == 18 || rx_slot == 19) {
+      allow_rx = true;
+      LOG_I(NR_MAC, "[RX_FILTER] ✅ Syncref src_id=%d ALLOWED to RX in slot %d (from UE1 or UE2)\n",
+            local_src_id, rx_slot);
+    } else {
+      LOG_D(NR_MAC, "[RX_FILTER] ⛔ Syncref src_id=%d BLOCKED from RX in slot %d (not 16,17,18,19)\n",
+            local_src_id, rx_slot);
+    }
+  }
+  else if (local_src_id == 1) {
+    // UE1 (src_id=1): Receives ONLY from Syncref in slots 6,7
+    if (rx_slot == 6 || rx_slot == 7) {
+      allow_rx = true;
+      LOG_I(NR_MAC, "[RX_FILTER] ✅ UE1 src_id=%d ALLOWED to RX in slot %d (from Syncref)\n",
+            local_src_id, rx_slot);
+    } else {
+      LOG_D(NR_MAC, "[RX_FILTER] ⛔ UE1 src_id=%d BLOCKED from RX in slot %d (not 6,7)\n",
+            local_src_id, rx_slot);
+    }
+  }
+  else if (local_src_id == 2) {
+    // UE2 (src_id=2): Receives ONLY from Syncref in slots 8,9
+    if (rx_slot == 8 || rx_slot == 9) {
+      allow_rx = true;
+      LOG_I(NR_MAC, "[RX_FILTER] ✅ UE2 src_id=%d ALLOWED to RX in slot %d (from Syncref)\n",
+            local_src_id, rx_slot);
+    } else {
+      LOG_D(NR_MAC, "[RX_FILTER] ⛔ UE2 src_id=%d BLOCKED from RX in slot %d (not 8,9)\n",
+            local_src_id, rx_slot);
+    }
+  }
+  
+  // If RX is not allowed for this slot, skip PSCCH configuration
+  if (!allow_rx) {
+    rx_config->number_pdus = 0; // Cancel RX for this slot
+    return;
+  }
+  
   // fill PSCCH RX PDU
   LOG_I(NR_MAC, "[UE%d] SL-PSCCH RX SCHEDULER: Frame:SLOT %d:%d, slot_type:%d\n",
         local_src_id, sl_ind->frame_rx, sl_ind->slot_rx,sl_ind->slot_type);
