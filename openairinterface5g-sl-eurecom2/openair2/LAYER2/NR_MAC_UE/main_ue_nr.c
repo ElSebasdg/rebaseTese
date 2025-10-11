@@ -115,7 +115,7 @@ size_t dump_mac_stats_sl(NR_UE_MAC_INST_t *mac, char *output, size_t strlen, boo
 
   NR_UE_SL_SCHED_LOCK(&mac->sl_info.mutex);
   
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];

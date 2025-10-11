@@ -3297,7 +3297,7 @@ uint8_t sl_determine_if_SSB_slot(uint16_t frame, uint16_t slot, uint16_t slots_p
 
 static void nr_store_slsch_buffer(NR_UE_MAC_INST_t *mac, frame_t frame, sub_frame_t slot) {
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];
@@ -3371,7 +3371,7 @@ void preprocess(NR_UE_MAC_INST_t *mac,
   int scs = sl_mac->sl_phy_config.sl_config_req.sl_bwp_config.sl_scs;
   const int nr_slots_frame = nr_slots_per_frame[scs];
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];
@@ -3479,6 +3479,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     }
     LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ Syncref src_id=%d allowed to transmit in slot %d (dedicated TX)\n",
           mac->src_id, slot);
+
+
   } else if (mac->src_id == 1) {
     // UE with src_id=1 transmits ONLY in slots 16 and 17
     if (slot != 16 && slot != 17) {
@@ -3488,6 +3490,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     }
     LOG_I(NR_MAC, "[SLOT_RESTRICTION] ✅ UE src_id=%d allowed to transmit in slot %d\n",
           mac->src_id, slot);
+
+
   } else if (mac->src_id == 2) {
     // UE with src_id=2 transmits ONLY in slots 18 and 19 (receives from Syncref in slots 8,9)
     if (slot != 18 && slot != 19) {
@@ -3506,7 +3510,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
   LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 nr_ue_sl_pssch_scheduler ENTRY: frame=%d.%d, local_srcid=%d\n", 
         frame, slot, mac->src_id);
   int active_ues = 0;
-  for (int debug_i = 0; debug_i < CUR_SL_UE_CONNECTIONS; debug_i++) {
+  for (uint16_t debug_i = 0; debug_i < mac->sl_info.max_capacity; debug_i++) {
     if (mac->sl_info.list[debug_i] != NULL) {
       active_ues++;
       LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋   slot[%d]: UE uid=%d, sched_psfch=%s\n", 
@@ -3514,7 +3518,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
             mac->sl_info.list[debug_i]->UE_sched_ctrl.sched_psfch ? "YES" : "NO");
     }
   }
-  LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 Total active UEs: %d/%d\n", active_ues, CUR_SL_UE_CONNECTIONS);
+  LOG_I(NR_MAC, "[LIST_ANALYSIS] 📋 Total active UEs: %d/%d (capacity=%d)\n", 
+        active_ues, mac->sl_info.num_connections, mac->sl_info.max_capacity);
 
 
 
@@ -3530,7 +3535,7 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
 
   preprocess(mac, frame, slot, &feedback_frame, &feedback_slot, sl_bwp, configured_PSFCH);
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];
@@ -3539,6 +3544,9 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
+    LOG_I(NR_MAC, "Processing UE->uid=%d (src_id=%d)\n", mac->sci2_pdu.dest_id, mac->src_id);
+    LOG_I(NR_MAC, "  UE->uid=%d: sched_psfch=%s\n", mac->sci2_pdu.dest_id,
+          UE->UE_sched_ctrl.sched_psfch ? "YES" : "NO");
     // 🎯 DESTINATION FILTERING: Syncref dedicated transmissions
     if (mac->src_id == 0) {
       // Slots 6,7: transmit ONLY to UE1 (dest_id=1)
@@ -4126,7 +4134,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
     //LOG_I(NR_MAC, "[SL_DEBUG] Sidelink scheduler called for mod_id=%d, frame=%d, slot=%d\n", mod_id, frame, slot);
     int connected_count = 0;
     int active_count = 0;
-    for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
       if (mac->sl_info.list[i] != NULL) {
         connected_count++;
         // Check if UE has any HARQ activity
@@ -4349,7 +4357,7 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
 
 
   // FIXED: Check all UEs instead of just [0], with null checks
-  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+  for (uint16_t ue_idx = 0; ue_idx < mac->sl_info.max_capacity; ue_idx++) {
     if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
       continue;
 

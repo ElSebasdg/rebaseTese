@@ -493,6 +493,12 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
 NR_SL_UE_info_t* find_UE(NR_UE_MAC_INST_t *mac,
                          uint16_t ue_id);
 
+// Dynamic SL UE list management functions
+NR_SL_UE_info_t* add_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid);
+void remove_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid);
+void expand_sl_ue_list(NR_UE_MAC_INST_t *mac);
+void free_sl_ue_list(NR_UE_MAC_INST_t *mac);
+
 int get_csi_reporting_frame_slot(NR_UE_MAC_INST_t *mac,
                                  NR_TDD_UL_DL_Pattern_t *tdd,
                                  uint8_t csi_offset,

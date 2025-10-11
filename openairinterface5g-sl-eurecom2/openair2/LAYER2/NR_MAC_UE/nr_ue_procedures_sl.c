@@ -30,8 +30,9 @@
 
 // Helper function to find SL UE by source ID
 static NR_SL_UE_info_t *find_sl_ue_by_src_id(NR_UE_MAC_INST_t *mac, uint32_t src_id) {
-  LOG_W(NR_MAC, "[SL_FIND_DEBUG] Searching for srcid=%u among %d connections\n", src_id, CUR_SL_UE_CONNECTIONS);
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  LOG_W(NR_MAC, "[SL_FIND_DEBUG] Searching for srcid=%u among %d connections (capacity=%d)\n", 
+        src_id, mac->sl_info.num_connections, mac->sl_info.max_capacity);
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] != NULL) {
       LOG_W(NR_MAC, "[SL_FIND_DEBUG] Slot[%d]: uid=%u, local_srcid=%u, configured=%s\n", 
             i, mac->sl_info.list[i]->uid, 
@@ -51,7 +52,7 @@ static NR_SL_UE_info_t *find_sl_ue_by_src_id(NR_UE_MAC_INST_t *mac, uint32_t src
 
 // Helper function to get first available SL UE (fallback when specific UID is not needed)
 static NR_SL_UE_info_t *get_first_sl_ue(NR_UE_MAC_INST_t *mac) {
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] != NULL) {
       return mac->sl_info.list[i];
     }
@@ -93,14 +94,227 @@ static void validate_srcid_compatibility(NR_UE_MAC_INST_t *mac, uint32_t test_sr
     
     // Summary for multi-UE setup
     int total_ues = 0;
-    for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
       if (mac->sl_info.list[i] != NULL) total_ues++;
     }
     
-    LOG_I(NR_MAC, "[SL_SRCID_VALIDATION] Current setup: %d/%d UE slots occupied | Local srcid=%d\n", 
-          total_ues, CUR_SL_UE_CONNECTIONS, mac->src_id);
+    LOG_I(NR_MAC, "[SL_SRCID_VALIDATION] Current setup: %d/%d UE slots occupied (capacity=%d) | Local srcid=%d\n", 
+          total_ues, mac->sl_info.num_connections, mac->sl_info.max_capacity, mac->src_id);
   }
 }
+
+// ============================================================================
+// Dynamic SL UE List Management Functions
+// ============================================================================
+
+/**
+ * @brief Expand the capacity of the SL UE list
+ * @param mac Pointer to the MAC instance
+ */
+void expand_sl_ue_list(NR_UE_MAC_INST_t *mac) {
+  if (!mac || !mac->sl_info.list) {
+    LOG_E(NR_MAC, "[SL_EXPAND] ERROR: Invalid MAC instance or list\n");
+    return;
+  }
+  
+  uint16_t new_capacity = mac->sl_info.max_capacity * 2;
+  if (new_capacity > MAX_SL_UE_CONNECTIONS) {
+    new_capacity = MAX_SL_UE_CONNECTIONS;
+    if (mac->sl_info.max_capacity >= MAX_SL_UE_CONNECTIONS) {
+      LOG_E(NR_MAC, "[SL_EXPAND] ERROR: Already at maximum capacity (%d)\n", MAX_SL_UE_CONNECTIONS);
+      return;
+    }
+  }
+  
+  LOG_I(NR_MAC, "[SL_EXPAND] Expanding list from %d to %d\n", 
+        mac->sl_info.max_capacity, new_capacity);
+  
+  NR_SL_UE_info_t **new_list = realloc(mac->sl_info.list, new_capacity * sizeof(NR_SL_UE_info_t*));
+  if (!new_list) {
+    LOG_E(NR_MAC, "[SL_EXPAND] ERROR: Failed to expand list to %d\n", new_capacity);
+    return;
+  }
+  
+  // Initialize new slots to NULL
+  for (uint16_t i = mac->sl_info.max_capacity; i < new_capacity; i++) {
+    new_list[i] = NULL;
+  }
+  
+  mac->sl_info.list = new_list;
+  mac->sl_info.max_capacity = new_capacity;
+  
+  LOG_I(NR_MAC, "[SL_EXPAND] SUCCESS: List expanded to capacity=%d\n", new_capacity);
+}
+
+/**
+ * @brief Add a new SL UE to the dynamic list
+ * @param mac Pointer to the MAC instance
+ * @param srcid Source ID of the new UE
+ * @return Pointer to the newly created SL UE info, or NULL on failure
+ */
+NR_SL_UE_info_t* add_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid) {
+  if (!mac) {
+    LOG_E(NR_MAC, "[SL_ADD_UE] ERROR: Invalid MAC instance\n");
+    return NULL;
+  }
+  
+  pthread_mutex_lock(&mac->sl_info.mutex);
+  
+  // Check if UE already exists
+  for (uint16_t i = 0; i < mac->sl_info.num_connections; i++) {
+    if (mac->sl_info.list[i] && mac->sl_info.list[i]->uid == srcid) {
+      LOG_W(NR_MAC, "[SL_ADD_UE] UE with srcid=%d already exists at index %d\n", srcid, i);
+      pthread_mutex_unlock(&mac->sl_info.mutex);
+      return mac->sl_info.list[i];
+    }
+  }
+  
+  // Check if we need to expand the list
+  if (mac->sl_info.num_connections >= mac->sl_info.max_capacity) {
+    LOG_I(NR_MAC, "[SL_ADD_UE] List full (connections=%d, capacity=%d), expanding...\n",
+          mac->sl_info.num_connections, mac->sl_info.max_capacity);
+    expand_sl_ue_list(mac);
+    
+    if (mac->sl_info.num_connections >= mac->sl_info.max_capacity) {
+      LOG_E(NR_MAC, "[SL_ADD_UE] ERROR: Cannot expand list further\n");
+      pthread_mutex_unlock(&mac->sl_info.mutex);
+      return NULL;
+    }
+  }
+  
+  // Find first NULL slot or use next available
+  uint16_t slot_idx = mac->sl_info.num_connections;
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
+    if (mac->sl_info.list[i] == NULL) {
+      slot_idx = i;
+      break;
+    }
+  }
+  
+  LOG_I(NR_MAC, "[SL_ADD_UE] Adding new UE srcid=%d at slot[%d]\n", srcid, slot_idx);
+  
+  // Allocate new UE info
+  mac->sl_info.list[slot_idx] = calloc(1, sizeof(NR_SL_UE_info_t));
+  if (!mac->sl_info.list[slot_idx]) {
+    LOG_E(NR_MAC, "[SL_ADD_UE] ERROR: Failed to allocate memory for SL UE info\n");
+    pthread_mutex_unlock(&mac->sl_info.mutex);
+    return NULL;
+  }
+  
+  // Initialize UE info
+  mac->sl_info.list[slot_idx]->uid = srcid;
+  
+  NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[slot_idx]->UE_sched_ctrl;
+  UE_sched_ctrl->rx_csi_report.RI = 0;
+  UE_sched_ctrl->rx_csi_report.CQI = 0;
+  UE_sched_ctrl->sl_max_mcs = get_nrUE_params()->mcs;
+  
+  // Initialize HARQ lists
+  create_nr_list(&UE_sched_ctrl->available_sl_harq, 16);
+  for (int harq = 0; harq < 16; harq++)
+    add_tail_nr_list(&UE_sched_ctrl->available_sl_harq, harq);
+  create_nr_list(&UE_sched_ctrl->feedback_sl_harq, 16);
+  create_nr_list(&UE_sched_ctrl->retrans_sl_harq, 16);
+  
+  mac->sl_info.num_connections++;
+  
+  LOG_I(NR_MAC, "[SL_ADD_UE] ✓ SUCCESS: Added srcid=%d at slot[%d], total_connections=%d/%d\n",
+        srcid, slot_idx, mac->sl_info.num_connections, mac->sl_info.max_capacity);
+  
+  pthread_mutex_unlock(&mac->sl_info.mutex);
+  return mac->sl_info.list[slot_idx];
+}
+
+/**
+ * @brief Remove a SL UE from the dynamic list
+ * @param mac Pointer to the MAC instance
+ * @param srcid Source ID of the UE to remove
+ */
+void remove_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid) {
+  if (!mac) {
+    LOG_E(NR_MAC, "[SL_REMOVE_UE] ERROR: Invalid MAC instance\n");
+    return;
+  }
+  
+  pthread_mutex_lock(&mac->sl_info.mutex);
+  
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
+    if (mac->sl_info.list[i] && mac->sl_info.list[i]->uid == srcid) {
+      LOG_I(NR_MAC, "[SL_REMOVE_UE] Removing UE srcid=%d from slot[%d]\n", srcid, i);
+      
+      // Free HARQ lists
+      NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[i]->UE_sched_ctrl;
+      destroy_nr_list(&UE_sched_ctrl->available_sl_harq);
+      destroy_nr_list(&UE_sched_ctrl->feedback_sl_harq);
+      destroy_nr_list(&UE_sched_ctrl->retrans_sl_harq);
+      
+      // Free sched_psfch if allocated
+      if (UE_sched_ctrl->sched_psfch) {
+        free(UE_sched_ctrl->sched_psfch);
+        UE_sched_ctrl->sched_psfch = NULL;
+      }
+      
+      // Free UE info
+      free(mac->sl_info.list[i]);
+      mac->sl_info.list[i] = NULL;
+      mac->sl_info.num_connections--;
+      
+      LOG_I(NR_MAC, "[SL_REMOVE_UE] ✓ SUCCESS: Removed srcid=%d, remaining_connections=%d\n",
+            srcid, mac->sl_info.num_connections);
+      
+      pthread_mutex_unlock(&mac->sl_info.mutex);
+      return;
+    }
+  }
+  
+  LOG_W(NR_MAC, "[SL_REMOVE_UE] WARNING: UE srcid=%d not found\n", srcid);
+  pthread_mutex_unlock(&mac->sl_info.mutex);
+}
+
+/**
+ * @brief Free the entire SL UE list and all associated resources
+ * @param mac Pointer to the MAC instance
+ */
+void free_sl_ue_list(NR_UE_MAC_INST_t *mac) {
+  if (!mac || !mac->sl_info.list) {
+    return;
+  }
+  
+  LOG_I(NR_MAC, "[SL_FREE_LIST] Freeing SL UE list with %d connections\n", 
+        mac->sl_info.num_connections);
+  
+  pthread_mutex_lock(&mac->sl_info.mutex);
+  
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
+    if (mac->sl_info.list[i]) {
+      NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[i]->UE_sched_ctrl;
+      
+      // Free HARQ lists
+      destroy_nr_list(&UE_sched_ctrl->available_sl_harq);
+      destroy_nr_list(&UE_sched_ctrl->feedback_sl_harq);
+      destroy_nr_list(&UE_sched_ctrl->retrans_sl_harq);
+      
+      // Free sched_psfch if allocated
+      if (UE_sched_ctrl->sched_psfch) {
+        free(UE_sched_ctrl->sched_psfch);
+      }
+      
+      free(mac->sl_info.list[i]);
+    }
+  }
+  
+  free(mac->sl_info.list);
+  mac->sl_info.list = NULL;
+  mac->sl_info.num_connections = 0;
+  mac->sl_info.max_capacity = 0;
+  
+  pthread_mutex_unlock(&mac->sl_info.mutex);
+  pthread_mutex_destroy(&mac->sl_info.mutex);
+  
+  LOG_I(NR_MAC, "[SL_FREE_LIST] ✓ SUCCESS: SL UE list freed\n");
+}
+
+// ============================================================================
 
 // Debug function to print connected UEs with enhanced multi-UE tracking
 // Function to enhance debugging and track multiple UE connections
@@ -117,7 +331,7 @@ __attribute__((unused)) static void print_connected_sl_ues(NR_UE_MAC_INST_t *mac
     LOG_I(NR_MAC, "[SL_MULTI_UE] %s - SL UE status (local_src_id=%d):\n", context, mac->src_id);
   }
   
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] != NULL) {
       allocated_count++;
       
@@ -1273,7 +1487,7 @@ void configure_psfch_params_rx(int module_idP,
   psfch_params_t *psfch_params = calloc(1, sizeof(psfch_params_t));
   compute_params(module_idP, psfch_params);
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] == NULL) continue;
     
     NR_SL_UE_info_t *UE = mac->sl_info.list[i];
@@ -1356,7 +1570,7 @@ uint8_t sl_num_slsch_feedbacks(NR_UE_MAC_INST_t *mac) {
 
 bool is_feedback_scheduled(NR_UE_MAC_INST_t *mac, int frameP,int slotP) {
   // Check feedback from all connected UEs
-  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+  for (uint16_t ue_idx = 0; ue_idx < mac->sl_info.max_capacity; ue_idx++) {
     if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
       continue;
       
@@ -1373,7 +1587,7 @@ bool is_feedback_scheduled(NR_UE_MAC_INST_t *mac, int frameP,int slotP) {
 
 void reset_sched_psfch(NR_UE_MAC_INST_t *mac, int frameP,int slotP) {
   // Reset feedback from all connected UEs
-  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+  for (uint16_t ue_idx = 0; ue_idx < mac->sl_info.max_capacity; ue_idx++) {
     if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
       continue;
       
@@ -1645,11 +1859,11 @@ NR_SL_UE_info_t* find_UE(NR_UE_MAC_INST_t *mac,
   bool detailed_debug = ((find_counter++ % 50) == 0);
   
   if (detailed_debug) {
-    LOG_I(NR_MAC, "[SL_MULTI_UE] find_UE: searching for uid=%d among %d possible connections\n", 
-          nearby_ue_id, CUR_SL_UE_CONNECTIONS);
+    LOG_I(NR_MAC, "[SL_MULTI_UE] find_UE: searching for uid=%d among %d active connections (capacity=%d)\n", 
+          nearby_ue_id, mac->sl_info.num_connections, mac->sl_info.max_capacity);
   }
 
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     // LOG_I(NR_MAC, "[SL_FIND_UE] Checking slot[%d]...\n", i);
     
     if (mac->sl_info.list[i] != NULL) {
@@ -1679,21 +1893,32 @@ NR_SL_UE_info_t* find_UE(NR_UE_MAC_INST_t *mac,
     }
   }
   
-  // Enhanced logging for failed searches
+  // Enhanced logging for failed searches - try to add UE dynamically
   if (detailed_debug || (find_counter % 20 == 0)) {
-    LOG_W(NR_MAC, "[SL_MULTI_UE] === UE NOT FOUND === target_uid=%d not in active UE list\n", nearby_ue_id);
+    LOG_W(NR_MAC, "[SL_MULTI_UE] === UE NOT FOUND === target_uid=%d not in active UE list, attempting dynamic addition\n", nearby_ue_id);
     
     // Print current UE summary for debugging
     int valid_ues = 0;
-    for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
       if (mac->sl_info.list[i] != NULL) {
         valid_ues++;
         LOG_W(NR_MAC, "  Available UE[%d]: uid=%d\n", i, mac->sl_info.list[i]->uid);
       }
     }
-    LOG_W(NR_MAC, "  Total available UEs: %d/%d\n", valid_ues, CUR_SL_UE_CONNECTIONS);
+    LOG_W(NR_MAC, "  Total available UEs: %d/%d (capacity=%d)\n", 
+          valid_ues, mac->sl_info.num_connections, mac->sl_info.max_capacity);
   }
   
+  // Attempt to add the UE dynamically when first discovered
+  LOG_I(NR_MAC, "[SL_MULTI_UE] Attempting to add new UE with srcid=%d dynamically\n", nearby_ue_id);
+  NR_SL_UE_info_t *new_ue = add_sl_ue(mac, nearby_ue_id);
+  
+  if (new_ue) {
+    LOG_I(NR_MAC, "[SL_MULTI_UE] ✓ Successfully added and found new UE srcid=%d\n", nearby_ue_id);
+    return new_ue;
+  }
+  
+  LOG_E(NR_MAC, "[SL_MULTI_UE] ✗ Failed to add new UE srcid=%d\n", nearby_ue_id);
   return NULL;
 }
 

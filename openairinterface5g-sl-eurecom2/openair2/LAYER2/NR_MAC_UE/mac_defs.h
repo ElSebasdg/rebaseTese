@@ -536,9 +536,11 @@ typedef struct {
 
 } NR_SL_UE_sched_ctrl_t;
 
-#define CUR_SL_UE_CONNECTIONS 2
+#define CUR_SL_UE_CONNECTIONS 2  // Deprecated: kept for backward compatibility, use num_connections instead
+#define INITIAL_SL_UE_CAPACITY 4  // Initial capacity for dynamic UE list
+#define MAX_SL_UE_CONNECTIONS 16  // Maximum allowed sidelink connections
 
-#define MAX_SL_CSI_REPORTCONFIG CUR_SL_UE_CONNECTIONS
+#define MAX_SL_CSI_REPORTCONFIG MAX_SL_UE_CONNECTIONS
 
 typedef struct {
   uid_t uid; // unique ID of this UE
@@ -551,7 +553,9 @@ typedef struct {
 
 typedef struct {
 
-  NR_SL_UE_info_t *list[CUR_SL_UE_CONNECTIONS];
+  NR_SL_UE_info_t **list;  // Dynamic array of pointers to SL UE info
+  uint16_t num_connections;  // Number of active connections
+  uint16_t max_capacity;  // Current allocated capacity
   uid_allocator_t ue_allocator;
   pthread_mutex_t mutex;
 } NR_SL_UEs_t;

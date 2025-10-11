@@ -40,7 +40,7 @@
 #define SL_CONFIG_STRING_SL_CSI_RS_SL_LATENCYBOUNDCSI_REPORT        "sl_LatencyBoundCSI_Report"
 // Helper function to get first available SL UE (duplicate from nr_ue_procedures_sl.c)
 static NR_SL_UE_info_t *get_first_sl_ue_local(NR_UE_MAC_INST_t *mac) {
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
     if (mac->sl_info.list[i] != NULL) {
       return mac->sl_info.list[i];
     }

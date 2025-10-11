@@ -108,7 +108,7 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   
   // FIXED: Support for multiple UEs - find UE by src_id with null checks
   // LOG_I(NR_MAC, "[SL_HARQ] Searching for UE with src_id=%d...\n", src_id);
-  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+  for (uint16_t ue_idx = 0; ue_idx < mac->sl_info.max_capacity; ue_idx++) {
     // LOG_I(NR_MAC, "[SL_HARQ] Checking slot[%d]: %p\n", ue_idx, UE_SL_temp[ue_idx]);
     if (UE_SL_temp[ue_idx] != NULL && UE_SL_temp[ue_idx]->uid == src_id) {
       UE = UE_SL_temp[ue_idx];
@@ -508,7 +508,9 @@ SL_CSI_Report_t* set_nr_ue_sl_csi_meas_periodicity(const NR_TDD_UL_DL_Pattern_t 
   uint8_t n_slots_frame = nr_slots_per_frame[mu];
   const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : n_slots_frame;
   const int nr_slots_period = tdd ? n_slots_frame / get_nb_periods_per_frame(tdd->dl_UL_TransmissionPeriodicity) : n_slots_frame;
-  const int ideal_period = (CUR_SL_UE_CONNECTIONS * nr_slots_period) / n_ul_slots_period;
+  // Use actual number of connections instead of static constant
+  const int active_connections = mac->sl_info.num_connections > 0 ? mac->sl_info.num_connections : 1;
+  const int ideal_period = (active_connections * nr_slots_period) / n_ul_slots_period;
   const int first_ul_slot_period = tdd ? get_first_ul_slot(tdd->nrofDownlinkSlots, tdd->nrofDownlinkSymbols, tdd->nrofUplinkSymbols) : 0;
   const int idx = (uid << 1) + is_rsrp;
   SL_CSI_Report_t *csi_report = &sched_ctrl->sched_csi_report;
