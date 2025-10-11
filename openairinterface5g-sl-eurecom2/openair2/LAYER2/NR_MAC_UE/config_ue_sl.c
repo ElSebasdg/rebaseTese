@@ -401,6 +401,9 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
   AssertFatal(sl_preconfiguration !=NULL,"SL-Preconfig Cannot be NULL");
   AssertFatal(mac, "mac should have an instance");
+  
+  // sl_info should be initialized (but may be empty)
+  AssertFatal(mac->sl_info.list, "sl_info.list should be initialized during MAC init");
 
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
 
@@ -552,21 +555,24 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     NR_TDD_UL_DL_Pattern_t *tdd = &sl_mac->sl_TDD_config->pattern1;
     const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
     uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        
-    // Initialize sched_psfch for the first available UE
+    
+    // Initialize sched_psfch for the first available UE (or create one if needed)
     NR_SL_UE_info_t *sl_ue = get_first_sl_ue_local(mac);
-    if (sl_ue != NULL) {
+    if (sl_ue == NULL) {
+      LOG_W(NR_MAC, "[SL_CONFIG] No SL UE exists yet, this is normal during initialization\n");
+      LOG_W(NR_MAC, "[SL_CONFIG] sched_psfch will be initialized when UE is detected\n");
+    } else {
       sl_ue->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
       if (sl_ue->UE_sched_ctrl.sched_psfch) {
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        LOG_I(NR_MAC, "[SL_INIT] Initialized sched_psfch for UE uid=%d\n", sl_ue->uid);
+        for (int i = 0; i < n_ul_slots_period * num_subch; i++) {
+          sl_ue->UE_sched_ctrl.sched_psfch[i].feedback_frame = -1;
+          sl_ue->UE_sched_ctrl.sched_psfch[i].feedback_slot = -1;
+        }
+        LOG_I(NR_MAC, "[SL_CONFIG] ✓ Initialized sched_psfch for UE uid=%d (size=%d)\n", 
+              sl_ue->uid, n_ul_slots_period * num_subch);
+      } else {
+        LOG_E(NR_MAC, "[SL_ERROR] Failed to allocate sched_psfch!\n");
       }
-    } else {
-      LOG_E(NR_MAC, "[SL_ERROR] No SL UE available for sched_psfch initialization!\n");
     }
 
     int nr_slots_period = nr_slots_frame;
@@ -703,6 +709,11 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
 {
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  AssertFatal(mac, "mac should have an instance");
+  
+  // sl_info should be initialized (but may be empty)
+  AssertFatal(mac->sl_info.list, "sl_info.list should be initialized during MAC init");
+  
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
   AssertFatal(sl_mac,"Sidelink MAC instance cannot be NULL");
 
@@ -781,21 +792,24 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
 
     const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
     uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-    mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
     
-    // Initialize sched_psfch for the first available UE
+    // Initialize sched_psfch for the first available UE (or create one if needed)
     NR_SL_UE_info_t *sl_ue = get_first_sl_ue_local(mac);
-    if (sl_ue != NULL) {
+    if (sl_ue == NULL) {
+      LOG_W(NR_MAC, "[SL_CONFIG] No SL UE exists yet for nearby UE, this is normal during initialization\n");
+      LOG_W(NR_MAC, "[SL_CONFIG] sched_psfch will be initialized when UE is detected\n");
+    } else {
       sl_ue->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
       if (sl_ue->UE_sched_ctrl.sched_psfch) {
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
-        sl_ue->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
-        LOG_I(NR_MAC, "[SL_INIT] Initialized sched_psfch for nearby UE uid=%d\n", sl_ue->uid);
+        for (int i = 0; i < n_ul_slots_period * num_subch; i++) {
+          sl_ue->UE_sched_ctrl.sched_psfch[i].feedback_frame = -1;
+          sl_ue->UE_sched_ctrl.sched_psfch[i].feedback_slot = -1;
+        }
+        LOG_I(NR_MAC, "[SL_CONFIG] ✓ Initialized sched_psfch for nearby UE uid=%d (size=%d)\n", 
+              sl_ue->uid, n_ul_slots_period * num_subch);
+      } else {
+        LOG_E(NR_MAC, "[SL_ERROR] Failed to allocate sched_psfch for nearby UE!\n");
       }
-    } else {
-      LOG_E(NR_MAC, "[SL_ERROR] No SL UE available for sched_psfch initialization (nearby UE)!\n");
     }
 
     LOG_I(MAC, "SIDELINK CONFIGs: tdd config period:%d, mu:%ld, DLslots:%ld,ULslots:%ld Mixedslotsym DL:UL %ld:%ld\n",

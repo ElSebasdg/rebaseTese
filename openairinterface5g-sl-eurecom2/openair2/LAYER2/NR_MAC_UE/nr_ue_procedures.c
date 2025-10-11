@@ -184,80 +184,24 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
 
   AssertFatal((get_nrUE_params()->mcs >= 0 && get_nrUE_params()->mcs <= 28), "MCS must be 1 to 28!!!");
   
-  // Initialize the sl_info structure with dynamic list
+  // Initialize the sl_info structure with dynamic list - START EMPTY
   memset(&mac->sl_info, 0, sizeof(NR_SL_UEs_t));
   pthread_mutex_init(&mac->sl_info.mutex, NULL);
   
   // Allocate initial capacity for dynamic list
   mac->sl_info.max_capacity = INITIAL_SL_UE_CAPACITY;
   mac->sl_info.list = calloc(mac->sl_info.max_capacity, sizeof(NR_SL_UE_info_t*));
-  mac->sl_info.num_connections = 0;
+  mac->sl_info.num_connections = 0;  // START WITH ZERO - no dummy UE
   
   if (!mac->sl_info.list) {
     LOG_E(NR_MAC, "[SL_INIT] ERROR: Failed to allocate memory for SL UE list\n");
     return;
   }
   
-  LOG_I(NR_MAC, "[SL_INIT] === INITIALIZING DYNAMIC SL UE LIST === src_id=%d, initial_capacity=%d\n", 
+  LOG_I(NR_MAC, "[SL_INIT] === DYNAMIC SL UE LIST INITIALIZED === src_id=%d, capacity=%d\n", 
         mac->src_id, mac->sl_info.max_capacity);
-  
-  // Pre-allocate structures for expected UEs (0 to CUR_SL_UE_CONNECTIONS), but skip own srcid
-  // This maintains backward compatibility while allowing dynamic expansion
-  int k = 0;
-  for (int i = 0; i < CUR_SL_UE_CONNECTIONS + 1 && k < mac->sl_info.max_capacity; i++) {
-    LOG_I(NR_MAC, "[SL_INIT] Checking uid=%d vs src_id=%d\n", i, mac->src_id);
-    
-    if (mac->src_id == i) {
-      LOG_I(NR_MAC, "[SL_INIT] Skipping own src_id=%d\n", i);
-      continue;
-    }
-    
-    LOG_I(NR_MAC, "[SL_INIT] Allocating UE slot[%d] for uid=%d...\n", k, i);
-    
-    // Safe allocation with null check
-    mac->sl_info.list[k] = calloc(1, sizeof(NR_SL_UE_info_t));
-    if (!mac->sl_info.list[k]) {
-      LOG_E(NR_MAC, "[SL_INIT] ERROR: Failed to allocate memory for SL UE info slot[%d]\n", k);
-      continue;
-    }
-    
-    mac->sl_info.list[k]->uid = i;
-    LOG_I(NR_MAC, "[SL_INIT] SUCCESS: Allocated UE[%d] with uid=%d at address %p\n", k, i, mac->sl_info.list[k]);
-    
-    NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[k]->UE_sched_ctrl;
-    UE_sched_ctrl->rx_csi_report.RI = 0;
-    UE_sched_ctrl->rx_csi_report.CQI = 0;
-    UE_sched_ctrl->sl_max_mcs = get_nrUE_params()->mcs;
-    create_nr_list(&UE_sched_ctrl->available_sl_harq, 16);
-    for (int harq = 0; harq < 16; harq++)
-      add_tail_nr_list(&UE_sched_ctrl->available_sl_harq, harq);
-    create_nr_list(&UE_sched_ctrl->feedback_sl_harq, 16);
-    create_nr_list(&UE_sched_ctrl->retrans_sl_harq, 16);
-    
-    LOG_I(NR_MAC, "[SL_INIT] === UE[%d] uid=%d LISTS INITIALIZED ===\n", k, i);
-    // LOG_I(NR_MAC, "[SL_INIT]   available_sl_harq: head=%d, len=%d\n", 
-    //       UE_sched_ctrl->available_sl_harq.head, UE_sched_ctrl->available_sl_harq.len);
-    // LOG_I(NR_MAC, "[SL_INIT]   feedback_sl_harq: head=%d, len=%d\n", 
-    //       UE_sched_ctrl->feedback_sl_harq.head, UE_sched_ctrl->feedback_sl_harq.len);
-    // LOG_I(NR_MAC, "[SL_INIT]   retrans_sl_harq: head=%d, len=%d\n", 
-    //       UE_sched_ctrl->retrans_sl_harq.head, UE_sched_ctrl->retrans_sl_harq.len);
-    
-    mac->sl_info.num_connections++;
-    k++;
-  }
-  
-  LOG_I(NR_MAC, "[SL_INIT] === DYNAMIC LIST READY === active_connections=%d, capacity=%d\n",
-        mac->sl_info.num_connections, mac->sl_info.max_capacity);
-  
-  // Log final state
-  LOG_I(NR_MAC, "[SL_INIT] === FINAL STATE === Allocated %d UEs:\n", k);
-  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
-    if (mac->sl_info.list[i] != NULL) {
-      LOG_I(NR_MAC, "[SL_INIT]   slot[%d]: UE uid=%d at %p\n", i, mac->sl_info.list[i]->uid, mac->sl_info.list[i]);
-    } else {
-      LOG_I(NR_MAC, "[SL_INIT]   slot[%d]: NULL\n", i);
-    }
-  }
+  LOG_I(NR_MAC, "[SL_INIT] === LIST STARTS EMPTY (num_connections=0) ===\n");
+  LOG_I(NR_MAC, "[SL_INIT] === UEs will be added dynamically when detected ===\n");
 }
 void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac)
 {

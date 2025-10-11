@@ -866,7 +866,10 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
 
     if (phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
       uint8_t *pdu_ptr = (uint8_t*)phy_data->nr_sl_pssch_pscch_pdu.slsch_payload;
-      LOG_W(NR_PHY, "[TX_TRACKING] 📤 UE%d TRANSMITTING: srcid=%d→dstid=%d, frame=%d.%d\n",pdu_ptr[1], pdu_ptr[1], pdu_ptr[2], frame_tx, slot_tx);
+      // Header layout: [0]=V+R, [1-2]=SRC(16bit), [3]=DST(8bit)
+      uint16_t srcid = pdu_ptr[1] | (pdu_ptr[2] << 8);
+      uint8_t dstid = pdu_ptr[3];
+      LOG_W(NR_PHY, "[TX_TRACKING] 📤 UE%d TRANSMITTING: srcid=%d→dstid=%d, frame=%d.%d\n", srcid, srcid, dstid, frame_tx, slot_tx);
 
     }
     phy_data->pscch_Nid = nr_generate_sci1(ue, txdataF[0], fp, AMP, slot_tx, &phy_data->nr_sl_pssch_pscch_pdu) &0xFFFF;

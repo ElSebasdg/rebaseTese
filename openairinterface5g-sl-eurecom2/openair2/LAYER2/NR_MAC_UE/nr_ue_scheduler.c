@@ -3544,8 +3544,8 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
       continue;
     }
 
-    LOG_I(NR_MAC, "Processing UE->uid=%d (src_id=%d)\n", mac->sci2_pdu.dest_id, mac->src_id);
-    LOG_I(NR_MAC, "  UE->uid=%d: sched_psfch=%s\n", mac->sci2_pdu.dest_id,
+    LOG_I(NR_MAC, "Processing UE->uid=%d (src_id=%d)\n", UE->uid, mac->src_id);
+    LOG_I(NR_MAC, "  UE->uid=%d: sched_psfch=%s\n", UE->uid,
           UE->UE_sched_ctrl.sched_psfch ? "YES" : "NO");
     // 🎯 DESTINATION FILTERING: Syncref dedicated transmissions
     if (mac->src_id == 0) {

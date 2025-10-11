@@ -537,8 +537,8 @@ typedef struct {
 } NR_SL_UE_sched_ctrl_t;
 
 #define CUR_SL_UE_CONNECTIONS 2  // Deprecated: kept for backward compatibility, use num_connections instead
-#define INITIAL_SL_UE_CAPACITY 4  // Initial capacity for dynamic UE list
-#define MAX_SL_UE_CONNECTIONS 16  // Maximum allowed sidelink connections
+#define INITIAL_SL_UE_CAPACITY 2  // Initial capacity for dynamic UE list (testing with max 2 UEs)
+#define MAX_SL_UE_CONNECTIONS 2   // Maximum allowed sidelink connections (limited for testing)
 
 #define MAX_SL_CSI_REPORTCONFIG MAX_SL_UE_CONNECTIONS
 

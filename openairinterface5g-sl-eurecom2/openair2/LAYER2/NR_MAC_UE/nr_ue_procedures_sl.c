@@ -204,6 +204,11 @@ NR_SL_UE_info_t* add_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid) {
   // Initialize UE info
   mac->sl_info.list[slot_idx]->uid = srcid;
   
+  LOG_I(NR_MAC, "[SL_ADD_UE] 🔍 VERIFICATION: Set uid=%d at list[%d], now reading back: uid=%d\n",
+        srcid, slot_idx, mac->sl_info.list[slot_idx]->uid);
+  LOG_I(NR_MAC, "[SL_ADD_UE] 🔍 Memory address of UE struct: %p\n", mac->sl_info.list[slot_idx]);
+  LOG_I(NR_MAC, "[SL_ADD_UE] 🔍 Memory address of uid field: %p\n", &mac->sl_info.list[slot_idx]->uid);
+  
   NR_SL_UE_sched_ctrl_t *UE_sched_ctrl = &mac->sl_info.list[slot_idx]->UE_sched_ctrl;
   UE_sched_ctrl->rx_csi_report.RI = 0;
   UE_sched_ctrl->rx_csi_report.CQI = 0;
@@ -220,6 +225,8 @@ NR_SL_UE_info_t* add_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid) {
   
   LOG_I(NR_MAC, "[SL_ADD_UE] ✓ SUCCESS: Added srcid=%d at slot[%d], total_connections=%d/%d\n",
         srcid, slot_idx, mac->sl_info.num_connections, mac->sl_info.max_capacity);
+  LOG_I(NR_MAC, "[SL_ADD_UE] ✓ FINAL VERIFICATION: list[%d]->uid = %d (ptr=%p)\n",
+        slot_idx, mac->sl_info.list[slot_idx]->uid, mac->sl_info.list[slot_idx]);
   
   pthread_mutex_unlock(&mac->sl_info.mutex);
   return mac->sl_info.list[slot_idx];

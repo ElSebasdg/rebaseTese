@@ -99,20 +99,45 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
   LOG_I(NR_MAC, "[SL_HARQ] Got mac instance: %p\n", mac);
   
-  NR_UE_SL_SCHED_LOCK(&mac->sl_sched_lock);
-
-  // LOG_I(NR_MAC, "[SL_HARQ] Acquired scheduler lock\n");
+  if (!mac) {
+    LOG_E(NR_MAC, "[SL_HARQ] ERROR: mac is NULL!\n");
+    return;
+  }
   
-  NR_SL_UE_info_t **UE_SL_temp = (NR_SL_UE_info_t **)&mac->sl_info.list, *UE = NULL;
-  // LOG_I(NR_MAC, "[SL_HARQ] UE_SL_temp: %p\n", UE_SL_temp);
+  LOG_I(NR_MAC, "[SL_HARQ] About to acquire scheduler lock at %p...\n", &mac->sl_sched_lock);
+  NR_UE_SL_SCHED_LOCK(&mac->sl_sched_lock);
+  LOG_I(NR_MAC, "[SL_HARQ] ✓ Acquired scheduler lock\n");
+  
+  LOG_I(NR_MAC, "[SL_HARQ] Accessing mac->sl_info.list at %p...\n", mac->sl_info.list);
+  NR_SL_UE_info_t **UE_SL_temp = mac->sl_info.list, *UE = NULL;
+  LOG_I(NR_MAC, "[SL_HARQ] UE_SL_temp assigned: %p, max_capacity=%d\n", UE_SL_temp, mac->sl_info.max_capacity);
   
   // FIXED: Support for multiple UEs - find UE by src_id with null checks
-  // LOG_I(NR_MAC, "[SL_HARQ] Searching for UE with src_id=%d...\n", src_id);
+  LOG_I(NR_MAC, "[SL_HARQ] Searching for UE with src_id=%d...\n", src_id);
   for (uint16_t ue_idx = 0; ue_idx < mac->sl_info.max_capacity; ue_idx++) {
-    // LOG_I(NR_MAC, "[SL_HARQ] Checking slot[%d]: %p\n", ue_idx, UE_SL_temp[ue_idx]);
-    if (UE_SL_temp[ue_idx] != NULL && UE_SL_temp[ue_idx]->uid == src_id) {
+    LOG_I(NR_MAC, "[SL_HARQ]   Checking slot[%d]: ptr=%p\n", ue_idx, UE_SL_temp[ue_idx]);
+    
+    // Validate pointer before dereferencing
+    if (UE_SL_temp[ue_idx] == NULL) {
+      LOG_D(NR_MAC, "[SL_HARQ]   slot[%d] is NULL, skipping\n", ue_idx);
+      continue;
+    }
+    
+    // Additional safety: check if pointer looks valid (not too small)
+    if ((uintptr_t)UE_SL_temp[ue_idx] < 0x1000) {
+      LOG_E(NR_MAC, "[SL_HARQ]   slot[%d] has INVALID pointer %p (too small), memory corruption!\n", 
+            ue_idx, UE_SL_temp[ue_idx]);
+      continue;
+    }
+    
+    // Now safe to dereference
+    uint16_t ue_uid = UE_SL_temp[ue_idx]->uid;
+    LOG_I(NR_MAC, "[SL_HARQ]   slot[%d] has UE with uid=%d (looking for %d)\n", 
+          ue_idx, ue_uid, src_id);
+    
+    if (ue_uid == src_id) {
       UE = UE_SL_temp[ue_idx];
-      // LOG_I(NR_MAC, "[SL_HARQ] Found UE with src_id %d at index %d, UE=%p\n", src_id, ue_idx, UE);
+      LOG_I(NR_MAC, "[SL_HARQ] ✓ Found UE with src_id %d at index %d, UE=%p\n", src_id, ue_idx, UE);
       break;
     }
   }
@@ -126,15 +151,23 @@ void handle_nr_ue_sl_harq(module_id_t mod_id,
   
   LOG_I(NR_MAC, "[SL_HARQ] Processing UE %p, accessing num_acks_rcvd...\n", UE);
   uint8_t num_ack_rcvd = rx_slsch_pdu->num_acks_rcvd;
-  // LOG_I(NR_MAC, "[SL_HARQ] num_ack_rcvd=%d\n", num_ack_rcvd);
-  // LOG_I(NR_MAC, "[SL_HARQ] Accessing UE->UE_sched_ctrl...\n");
+  LOG_I(NR_MAC, "[SL_HARQ] num_ack_rcvd=%d\n", num_ack_rcvd);
+  LOG_I(NR_MAC, "[SL_HARQ] Accessing UE->UE_sched_ctrl...\n");
   NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
-  // LOG_I(NR_MAC, "[SL_HARQ] sched_ctrl=%p\n", sched_ctrl);
+  LOG_I(NR_MAC, "[SL_HARQ] sched_ctrl=%p\n", sched_ctrl);
   
-  // LOG_I(NR_MAC, "[SL_HARQ] Accessing feedback_sl_harq.len...\n");
-  // LOG_I(NR_MAC, "[SL_HARQ] feedback_sl_harq.len=%d\n", sched_ctrl->feedback_sl_harq.len);
+  LOG_I(NR_MAC, "[SL_HARQ] Checking feedback_sl_harq structure...\n");
+  LOG_I(NR_MAC, "[SL_HARQ]   feedback_sl_harq.head=%d\n", sched_ctrl->feedback_sl_harq.head);
+  LOG_I(NR_MAC, "[SL_HARQ]   feedback_sl_harq.next=%p\n", sched_ctrl->feedback_sl_harq.next);
+  LOG_I(NR_MAC, "[SL_HARQ]   feedback_sl_harq.len=%d\n", sched_ctrl->feedback_sl_harq.len);
   
-  // LOG_I(NR_MAC, "[SL_HARQ] Calling calloc for matched_harqs...\n");
+  if (sched_ctrl->feedback_sl_harq.len == 0) {
+    LOG_W(NR_MAC, "[SL_HARQ] ⚠️  WARNING: feedback_sl_harq.len is 0! HARQ lists may not be initialized!\n");
+    NR_UE_SL_SCHED_UNLOCK(&mac->sl_sched_lock);
+    return;
+  }
+  
+  LOG_I(NR_MAC, "[SL_HARQ] Calling calloc for matched_harqs (size=%d)...\n", sched_ctrl->feedback_sl_harq.len);
   NR_UE_sl_harq_t **matched_harqs = (NR_UE_sl_harq_t **) calloc(sched_ctrl->feedback_sl_harq.len, sizeof(NR_UE_sl_harq_t *));
   // LOG_I(NR_MAC, "[SL_HARQ] matched_harqs=%p\n", matched_harqs);
   
