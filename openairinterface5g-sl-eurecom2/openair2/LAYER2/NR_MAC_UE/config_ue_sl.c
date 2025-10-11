@@ -737,6 +737,31 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
 
     sl_mac->rx_sl_bch.num_ssb = 0;
     sl_mac->rx_sl_bch.ssb_slot = 0;
+    
+    // ADD SYNCREF TO UE LIST DYNAMICALLY
+    // When remote UE detects syncref via PSBCH, add it to the UE list
+    // The srcid of syncref is derived from rx_slss_id
+    // For simplicity, assume syncref has srcid=0 (standard convention)
+    uint16_t syncref_srcid = 0;  // Syncref typically uses srcid=0
+    
+    LOG_I(NR_MAC, "[SL_SYNC_DETECT] Remote UE%d detected syncref with rx_slss_id=%d\n", 
+          module_id, rx_slss_id);
+    LOG_I(NR_MAC, "[SL_SYNC_DETECT] Adding syncref (srcid=%d) to UE list dynamically\n", syncref_srcid);
+    
+    // Check if syncref already in list
+    NR_SL_UE_info_t *syncref_ue = find_UE(mac, syncref_srcid);
+    if (syncref_ue) {
+      LOG_I(NR_MAC, "[SL_SYNC_DETECT] Syncref already in list (uid=%d)\n", syncref_ue->uid);
+    } else {
+      LOG_I(NR_MAC, "[SL_SYNC_DETECT] Syncref not in list, adding now...\n");
+      syncref_ue = add_sl_ue(mac, syncref_srcid);
+      if (syncref_ue) {
+        LOG_I(NR_MAC, "[SL_SYNC_DETECT] ✓ Successfully added syncref (srcid=%d, uid=%d) to list\n", 
+              syncref_srcid, syncref_ue->uid);
+      } else {
+        LOG_E(NR_MAC, "[SL_SYNC_DETECT] ✗ Failed to add syncref to list!\n");
+      }
+    }
 
     sl_mac_config_ssb_time_alloc(module_id,
                                 ssb_ta,
