@@ -3547,12 +3547,15 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
     LOG_I(NR_MAC, "Processing UE->uid=%d (src_id=%d)\n", UE->uid, mac->src_id);
     LOG_I(NR_MAC, "  UE->uid=%d: sched_psfch=%s\n", UE->uid,
           UE->UE_sched_ctrl.sched_psfch ? "YES" : "NO");
+    
     // 🎯 DESTINATION FILTERING: Syncref dedicated transmissions
     if (mac->src_id == 0) {
+      LOG_I(NR_MAC, "[DEST_FILTER] 🔍 Syncref checking: slot=%d, UE->uid=%d\n", slot, UE->uid);
+      
       // Slots 6,7: transmit ONLY to UE1 (dest_id=1)
-      if ((slot == 6 || slot == 7)) {
+      if (slot == 6 || slot == 7) {
         if (UE->uid != 1) {
-          LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d skipping UE->uid=%d (slots 6,7 dedicated to dest_id=1)\n",
+          LOG_I(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d SKIPPING UE->uid=%d (slots 6,7 ONLY for dest_id=1)\n",
                 mac->src_id, slot, UE->uid);
           continue;
         }
@@ -3560,14 +3563,20 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
               mac->src_id, slot, UE->uid);
       }
       // Slots 8,9: transmit ONLY to UE2 (dest_id=2)
-      else if ((slot == 8 || slot == 9)) {
+      else if (slot == 8 || slot == 9) {
         if (UE->uid != 2) {
-          LOG_D(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d skipping UE->uid=%d (slots 8,9 dedicated to dest_id=2)\n",
+          LOG_I(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d SKIPPING UE->uid=%d (slots 8,9 ONLY for dest_id=2)\n",
                 mac->src_id, slot, UE->uid);
           continue;
         }
         LOG_I(NR_MAC, "[DEST_FILTER] ✅ Syncref src_id=%d in slot %d processing UE->uid=%d (dedicated transmission to UE2)\n",
               mac->src_id, slot, UE->uid);
+      }
+      // For any other slot (not 6,7,8,9), skip all UEs - no transmission
+      else {
+        LOG_I(NR_MAC, "[DEST_FILTER] ⛔ Syncref src_id=%d in slot %d SKIPPING UE->uid=%d (not a dedicated TX slot)\n",
+              mac->src_id, slot, UE->uid);
+        continue;
       }
     }
 

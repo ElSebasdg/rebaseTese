@@ -27,6 +27,8 @@
 
 #define SL_DEBUG
 
+// Forward declarations
+static void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue);
 
 // Helper function to find SL UE by source ID
 static NR_SL_UE_info_t *find_sl_ue_by_src_id(NR_UE_MAC_INST_t *mac, uint32_t src_id) {
@@ -227,6 +229,16 @@ NR_SL_UE_info_t* add_sl_ue(NR_UE_MAC_INST_t *mac, uint16_t srcid) {
         srcid, slot_idx, mac->sl_info.num_connections, mac->sl_info.max_capacity);
   LOG_I(NR_MAC, "[SL_ADD_UE] ✓ FINAL VERIFICATION: list[%d]->uid = %d (ptr=%p)\n",
         slot_idx, mac->sl_info.list[slot_idx]->uid, mac->sl_info.list[slot_idx]);
+  
+  // 🆕 Initialize sched_psfch immediately after adding the UE
+  LOG_I(NR_MAC, "[SL_ADD_UE] Initializing sched_psfch for newly added UE srcid=%d...\n", srcid);
+  ensure_sched_psfch_initialized(mac, mac->sl_info.list[slot_idx]);
+  
+  if (mac->sl_info.list[slot_idx]->UE_sched_ctrl.sched_psfch != NULL) {
+    LOG_I(NR_MAC, "[SL_ADD_UE] ✅ sched_psfch successfully initialized for srcid=%d\n", srcid);
+  } else {
+    LOG_E(NR_MAC, "[SL_ADD_UE] ❌ ERROR: Failed to initialize sched_psfch for srcid=%d\n", srcid);
+  }
   
   pthread_mutex_unlock(&mac->sl_info.mutex);
   return mac->sl_info.list[slot_idx];
