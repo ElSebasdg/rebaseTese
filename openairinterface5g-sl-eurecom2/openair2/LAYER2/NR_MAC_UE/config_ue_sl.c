@@ -402,7 +402,7 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
   AssertFatal(sl_preconfiguration !=NULL,"SL-Preconfig Cannot be NULL");
   AssertFatal(mac, "mac should have an instance");
   
-  // sl_info should be initialized (but may be empty)
+  // sl_info list should be initialized (but may be empty)
   AssertFatal(mac->sl_info.list, "sl_info.list should be initialized during MAC init");
 
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
@@ -711,7 +711,7 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
   AssertFatal(mac, "mac should have an instance");
   
-  // sl_info should be initialized (but may be empty)
+  // sl_info list should be initialized (but may be empty)
   AssertFatal(mac->sl_info.list, "sl_info.list should be initialized during MAC init");
   
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;

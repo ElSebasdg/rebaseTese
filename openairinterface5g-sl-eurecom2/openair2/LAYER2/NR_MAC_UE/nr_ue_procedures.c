@@ -191,17 +191,17 @@ void nr_ue_init_mac(module_id_t module_idP, ueinfo_t* ueinfo)
   // Allocate initial capacity for dynamic list
   mac->sl_info.max_capacity = INITIAL_SL_UE_CAPACITY;
   mac->sl_info.list = calloc(mac->sl_info.max_capacity, sizeof(NR_SL_UE_info_t*));
-  mac->sl_info.num_connections = 0;  // START WITH ZERO - no dummy UE
+  mac->sl_info.num_connections = 0;  // Start empty - UEs added on detection
   
   if (!mac->sl_info.list) {
     LOG_E(NR_MAC, "[SL_INIT] ERROR: Failed to allocate memory for SL UE list\n");
     return;
   }
   
-  LOG_I(NR_MAC, "[SL_INIT] === DYNAMIC SL UE LIST INITIALIZED === src_id=%d, capacity=%d\n", 
+  LOG_I(NR_MAC, "[SL_INIT] === DYNAMIC SL UE LIST INITIALIZED === local_srcid=%d, capacity=%d\n", 
         mac->src_id, mac->sl_info.max_capacity);
-  LOG_I(NR_MAC, "[SL_INIT] === LIST STARTS EMPTY (num_connections=0) ===\n");
-  LOG_I(NR_MAC, "[SL_INIT] === UEs will be added dynamically when detected ===\n");
+  LOG_I(NR_MAC, "[SL_INIT] === LIST STARTS EMPTY === Remote UEs added dynamically on detection\n");
+  LOG_I(NR_MAC, "[SL_INIT] === Initial state: num_connections=0/%d ===\n", mac->sl_info.max_capacity);
 }
 void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac)
 {
