@@ -946,11 +946,11 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
                                   fp->nb_antennas_tx,
                                   txdataF, link_type_sl);
 
-  } else {
-    // 🎯 TX STATUS: Log when NO transmission occurs
-    LOG_I(NR_PHY, "[TX_STATUS] ⚫ UE%d: NO PSSCH transmitted in frame=%d.%d (no tx_action)\n",
-          ue->Mod_id, frame_tx, slot_tx);
-  }
+  } //else {
+  //   // 🎯 TX STATUS: Log when NO transmission occurs
+  //   LOG_I(NR_PHY, "[TX_STATUS] ⚫ UE%d: NO PSSCH transmitted in frame=%d.%d (no tx_action)\n",
+  //         ue->Mod_id, frame_tx, slot_tx);
+  // }
   LOG_D(PHY,"****** end Sidelink TX-Chain for AbsSubframe %d.%d ******\n",
         frame_tx, slot_tx);
   return tx_action;
