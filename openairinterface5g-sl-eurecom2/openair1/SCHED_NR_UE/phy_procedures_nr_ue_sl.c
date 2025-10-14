@@ -919,12 +919,37 @@ int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue,
   }
   if (tx_action) {
     LOG_D(PHY, "Sending SL data \n");
+    
+    // 🎯 TX STATUS: Log successful transmission with resource details
+    if (phy_data->sl_tx_action >= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH && 
+        phy_data->sl_tx_action <= SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_CSI_RS &&
+        phy_data->nr_sl_pssch_pscch_pdu.slsch_payload) {
+      uint8_t *pdu_ptr = (uint8_t*)phy_data->nr_sl_pssch_pscch_pdu.slsch_payload;
+      uint16_t srcid = pdu_ptr[1] | (pdu_ptr[2] << 8);
+      uint8_t dstid = pdu_ptr[3];
+      uint32_t rb_size = phy_data->nr_sl_pssch_pscch_pdu.num_subch * 
+                         phy_data->nr_sl_pssch_pscch_pdu.subchannel_size;
+      LOG_W(NR_PHY, "[TX_STATUS] 🟢 srcid=%d: PSSCH transmitted in frame=%d.%d (→dstid=%d)\n",
+            srcid, frame_tx, slot_tx, dstid);
+      LOG_I(NR_PHY, "[TX_RESOURCE_TRACKING] 📤 srcid=%d TX_DETAILS: num_subch=%d, subchannel_size=%d, rb_size=%d, mcs=%d, tb_size=%d bytes\n",
+            srcid,
+            phy_data->nr_sl_pssch_pscch_pdu.num_subch,
+            phy_data->nr_sl_pssch_pscch_pdu.subchannel_size,
+            rb_size,
+            phy_data->nr_sl_pssch_pscch_pdu.mcs,
+            phy_data->nr_sl_pssch_pscch_pdu.tb_size);
+    }
+    
     nr_ue_pusch_common_procedures(ue,
                                   proc->nr_slot_tx,
                                   fp,
                                   fp->nb_antennas_tx,
                                   txdataF, link_type_sl);
 
+  } else {
+    // 🎯 TX STATUS: Log when NO transmission occurs
+    LOG_I(NR_PHY, "[TX_STATUS] ⚫ UE%d: NO PSSCH transmitted in frame=%d.%d (no tx_action)\n",
+          ue->Mod_id, frame_tx, slot_tx);
   }
   LOG_D(PHY,"****** end Sidelink TX-Chain for AbsSubframe %d.%d ******\n",
         frame_tx, slot_tx);
