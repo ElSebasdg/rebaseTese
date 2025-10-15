@@ -1142,85 +1142,74 @@ int get_feedback_frame_slot(NR_UE_MAC_INST_t *mac, NR_TDD_UL_DL_Pattern_t *tdd,
 
 int16_t get_feedback_slot(long psfch_period, uint16_t slot) {
   int16_t feedback_slot = -1;
-  // TDD Config: Period=10, DL=6 slots (0-5), UL=4 slots (6-9), repeats at slots 16-19
   if (psfch_period == 1) {
     switch(slot) {
-      // First TDD period (slots 6-9 are UL)
-      case 6:
-        feedback_slot = 12;
+      case 0:
+        feedback_slot = 6;
       break;
-      case 7:
-        feedback_slot = 13;
+      case 1:
+        feedback_slot = 7;
       break;
-      case 8:
-        feedback_slot = 14;
+      case 2:
+        feedback_slot = 8;
       break;
-      case 9:
-        feedback_slot = 15;
+      case 3:
+        feedback_slot = 9;
       break;
-      // Second TDD period (slots 16-19 are UL)
-      case 16:
-        feedback_slot = 22;
+      case 10:
+        feedback_slot = 16;
       break;
-      case 17:
-        feedback_slot = 23;
+      case 11:
+        feedback_slot = 17;
       break;
-      case 18:
-        feedback_slot = 24;
+      case 12:
+        feedback_slot = 18;
       break;
-      case 19:
-        feedback_slot = 25;
+      case 13:
+        feedback_slot = 19;
       break;
       default:
-        LOG_E(NR_MAC, "[PSFCH] Invalid PSSCH slot %d for psfch_period=%ld - not an uplink slot\n", slot, psfch_period);
-        return -1;
+        AssertFatal(1 == 0, "Invalid slot %d\n", slot);
     }
   } else if (psfch_period == 2) {
     switch(slot) {
-      // First TDD period (slots 6-9 are UL)
-      case 6:
-      case 7:
-        feedback_slot = 13;
+      case 0:
+      case 1:
+        feedback_slot = 7;
       break;
-      case 8:
-      case 9:
-        feedback_slot = 15;
+      case 2:
+      case 3:
+        feedback_slot = 9;
       break;
-      // Second TDD period (slots 16-19 are UL)
-      case 16:
-      case 17:
-        feedback_slot = 23;
+      case 10:
+      case 11:
+        feedback_slot = 17;
       break;
-      case 18:
-      case 19:
-        feedback_slot = 25;
+      case 12:
+      case 13:
+        feedback_slot = 19;
       break;
       default:
-        LOG_E(NR_MAC, "[PSFCH] Invalid PSSCH slot %d for psfch_period=%ld - not an uplink slot\n", slot, psfch_period);
-        return -1;
+        AssertFatal(1 == 0, "Invalid slot %d\n", slot);
     }
   } else if (psfch_period == 4) {
     switch(slot) {
-      // First TDD period (slots 6-9 are UL)
-      case 6:
-      case 7:
-      case 8:
-      case 9:
-        feedback_slot = 15;
+      case 0:
+      case 1:
+      case 2:
+      case 3:
+        feedback_slot = 9;
       break;
-      // Second TDD period (slots 16-19 are UL)
-      case 16:
-      case 17:
-      case 18:
-      case 19:
-        feedback_slot = 25;
+      case 10:
+      case 11:
+      case 12:
+      case 13:
+        feedback_slot = 19;
       break;
       default:
-        LOG_E(NR_MAC, "[PSFCH] Invalid PSSCH slot %d for psfch_period=%ld - not an uplink slot\n", slot, psfch_period);
-        return -1;
+        AssertFatal(1 == 0, "Invalid slot %d\n", slot);
     }
   }
-  LOG_D(NR_MAC, "[PSFCH_MAPPING] PSSCH slot %d → PSFCH feedback slot %d (period=%ld)\n", slot, feedback_slot, psfch_period);
   return feedback_slot;
 }
 
