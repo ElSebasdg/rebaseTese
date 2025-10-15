@@ -1495,7 +1495,13 @@ void configure_psfch_params_rx(int module_idP,
   long psfch_period = (sl_psfch_config->sl_PSFCH_Period_r16)
                         ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
   uint16_t num_subch = sl_get_num_subch(mac->sl_rx_res_pool);
-  rx_config->sl_rx_config_list[0].rx_psfch_pdu_list = calloc(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
+  
+  // FIX: Allocate buffer size to handle multiple UEs (max 16 HARQ processes per UE * max UEs)
+  // Conservative allocation: max_capacity * 16 HARQ processes, but limit to reasonable size
+  int max_psfch_pdus = mac->sl_info.max_capacity * 16;  
+  if (max_psfch_pdus > 64) max_psfch_pdus = 64; // Safety limit
+  
+  rx_config->sl_rx_config_list[0].rx_psfch_pdu_list = calloc(max_psfch_pdus, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
   NR_SL_UEs_t *UE_info = &mac->sl_info;
 
   if (*(UE_info->list) == NULL) {
@@ -1506,10 +1512,14 @@ void configure_psfch_params_rx(int module_idP,
   psfch_params_t *psfch_params = calloc(1, sizeof(psfch_params_t));
   compute_params(module_idP, psfch_params);
 
-  for (uint16_t i = 0; i < mac->sl_info.max_capacity; i++) {
-    if (mac->sl_info.list[i] == NULL) continue;
+  // Global counter for PSFCH PDUs across all UEs
+  int global_psfch_idx = 0;
+  rx_config->sl_rx_config_list[0].num_psfch_pdus = 0;
+
+  for (uint16_t ue_idx = 0; ue_idx < mac->sl_info.max_capacity; ue_idx++) {
+    if (mac->sl_info.list[ue_idx] == NULL) continue;
     
-    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    NR_SL_UE_info_t *UE = mac->sl_info.list[ue_idx];
     // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
     if (!UE->UE_sched_ctrl.sched_psfch) {
       continue;
@@ -1518,18 +1528,31 @@ void configure_psfch_params_rx(int module_idP,
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     NR_UE_sl_harq_t **matched_harqs = (NR_UE_sl_harq_t **) calloc(sched_ctrl->feedback_sl_harq.len, sizeof(NR_UE_sl_harq_t *));
     int matched_sz = find_current_slot_harqs(frame, slot, sched_ctrl, matched_harqs);
-    LOG_D(NR_MAC, "%s matched_sz %d\n", __FUNCTION__, matched_sz);
-    rx_config->sl_rx_config_list[0].num_psfch_pdus = 0;
-    for (int i = 0; i < matched_sz; i++) {
-      AssertFatal(i < UE->UE_sched_ctrl.feedback_sl_harq.len, "k MUST be smaller than feedback_sl_harq length\n");
-      AssertFatal(i < (psfch_period * num_subch), "k MUST be smaller than %ld\n", (psfch_period * num_subch));
-      NR_UE_sl_harq_t *cur_harq = matched_harqs[i];
-      sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu = &rx_config->sl_rx_config_list[0].rx_psfch_pdu_list[i];
+    LOG_D(NR_MAC, "%s UE uid=%d matched_sz=%d, global_idx=%d\n", __FUNCTION__, UE->uid, matched_sz, global_psfch_idx);
+    
+    for (int harq_idx = 0; harq_idx < matched_sz; harq_idx++) {
+      // Use global counter instead of per-UE counter
+      if (global_psfch_idx >= max_psfch_pdus) {
+        LOG_E(NR_MAC, "[PSFCH_ERROR] Buffer overflow: global_psfch_idx=%d >= max=%d. Skipping remaining HARQs.\n", 
+              global_psfch_idx, max_psfch_pdus);
+        break;
+      }
+      
+      AssertFatal(harq_idx < UE->UE_sched_ctrl.feedback_sl_harq.len, 
+                  "harq_idx=%d MUST be smaller than feedback_sl_harq length=%d\n", 
+                  harq_idx, UE->UE_sched_ctrl.feedback_sl_harq.len);
+      
+      NR_UE_sl_harq_t *cur_harq = matched_harqs[harq_idx];
+      sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu = &rx_config->sl_rx_config_list[0].rx_psfch_pdu_list[global_psfch_idx];
       fill_psfch_params_rx(rx_config, psfch_pdu, psfch_params, cur_harq, mac, psfch_period, slot);
+      global_psfch_idx++;
     }
     free(matched_harqs);
     matched_harqs = NULL;
   }
+  
+  LOG_D(NR_MAC, "[PSFCH_RX] Frame %d.%d: Configured %d PSFCH PDUs for all UEs\n", 
+        frame, slot, global_psfch_idx);
 }
 
 void fill_psfch_params_rx(sl_nr_rx_config_request_t *rx_config, sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu, psfch_params_t *psfch_params, NR_UE_sl_harq_t *cur_harq, NR_UE_MAC_INST_t *mac, long psfch_period, const uint16_t slot) {
