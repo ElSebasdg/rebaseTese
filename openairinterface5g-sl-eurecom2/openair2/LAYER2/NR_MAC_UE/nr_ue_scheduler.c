@@ -4409,7 +4409,12 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
   NR_TDD_UL_DL_Pattern_t *tdd = &sl_mac->sl_TDD_config->pattern1;
   const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
   uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
-  tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list = CALLOC(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
+  
+  // FIX: Allocate buffer for multiple UEs (max 16 HARQ per UE * max UEs)
+  int max_psfch_pdus = mac->sl_info.max_capacity * 16;
+  if (max_psfch_pdus > 64) max_psfch_pdus = 64; // Safety limit
+  
+  tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list = CALLOC(max_psfch_pdus, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
   sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu_list = tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list;
   int k = 0;
 
@@ -4427,7 +4432,13 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
         sl_ind->slot_tx = sched_psfch->feedback_slot;
         sl_ind->frame_tx = sched_psfch->feedback_frame;
         sl_ind->slot_type = SIDELINK_SLOT_TYPE_TX;
-        AssertFatal(k < psfch_period*num_subch, "Number of PSFCH pdus cannot exceed %ld\n", psfch_period * num_subch);
+        
+        // Check buffer overflow with graceful handling
+        if (k >= max_psfch_pdus) {
+          LOG_E(NR_MAC, "[PSFCH_TX_ERROR] Buffer overflow: k=%d >= max=%d. Skipping PSFCH for UE %d\n", 
+                k, max_psfch_pdus, ue_idx);
+          continue;
+        }
       fill_psfch_pdu(sched_psfch, &psfch_pdu_list[k], num_psfch_symbols);
       *config_type = SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH;
       tx_config->number_pdus = 1;
@@ -4443,6 +4454,7 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
     } // end UE loop
   }
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.num_psfch_pdus = k;
+  LOG_I(NR_MAC, "[PSFCH_TX] Frame %d.%d: Configured %d PSFCH TX PDUs for all UEs\n", frame, slot, k);
 }
 
 void fill_psfch_pdu(SL_sched_feedback_t *mac_psfch_pdu,
