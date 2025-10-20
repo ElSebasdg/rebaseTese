@@ -3762,7 +3762,7 @@ void nr_ue_sl_pscch_rx_scheduler(nr_sidelink_indication_t *sl_ind,
                        sl_res_pool,
                        sl_has_psfch);
 
-  LOG_I(NR_MAC, "[PSCCH_SCHEDULER] 📡 UE%d SCHEDULING PSCCH RX: frame=%d.%d, slot_type=%d\n", sl_ind->module_id, sl_ind->frame_rx, sl_ind->slot_rx, sl_ind->slot_type);
+  //LOG_I(NR_MAC, "[PSCCH_SCHEDULER] 📡 UE%d SCHEDULING PSCCH RX: frame=%d.%d, slot_type=%d\n", sl_ind->module_id, sl_ind->frame_rx, sl_ind->slot_rx, sl_ind->slot_type);
   LOG_D(NR_MAC, "[UE%d] TTI-%d:%d RX PSCCH REQ \n", sl_ind->module_id,sl_ind->frame_rx, sl_ind->slot_rx);
 
 }
@@ -4017,7 +4017,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
       prev_slot = slot;
   }
   // log to check conditions before calling pssch scheduler
-  LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
+  //LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
         frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
    
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {

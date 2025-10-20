@@ -282,7 +282,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
         sched_pssch->mcs = min(max_mcs, 9);  // Usar CQI-calculated com limite 16
 
         // Log para monitorar adaptação
-        if (frameP % 100 == 0) {
+        if (frameP % 50 == 0) {
           printf(" MCS: %d (CQI=%d, max_possible=%d)\n", 
                 sched_pssch->mcs, current_cqi, max_mcs);
           printf("\n\n--------Current CQI=%d ----------------\n\n",current_cqi);
