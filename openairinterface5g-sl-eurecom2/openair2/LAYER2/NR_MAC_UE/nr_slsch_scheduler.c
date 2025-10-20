@@ -42,6 +42,8 @@
 #include <executables/nr-uesoftmodem.h>
 #include "NR_MAC_UE/mac_defs_sl.h"
 #include "NR_MAC_gNB/nr_mac_gNB.h"
+#include "openair1/SIMULATION/TOOLS/sim.h"
+#include "openair1/PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
 
 #define LOWER_BLER 0.2344
 #define UPPER_BLER 5.547
@@ -265,13 +267,48 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   sl_bo->upper = UPPER_BLER;
   sl_bo->max_mcs = MAX_MCS;
 
+
   const int max_mcs_table = mcs_tb_ind == 1 ? 27 : 28;
   int max_mcs = min(sched_ctrl->sl_max_mcs, max_mcs_table);
-  if (sl_bo->harq_round_max == 1)
-    sched_pssch->mcs = max_mcs;
-  else {
-    sched_pssch->mcs = get_mcs_from_bler(sl_bo, stats, &sched_ctrl->sl_bler_stats, max_mcs, frameP);
-  }
+  if (sl_bo->harq_round_max == 1) {
+      sched_pssch->mcs = max_mcs;
+    } else {
+      // Use real-time CQI from PHY layer
+      uint8_t current_cqi = cqi;
+      if (current_cqi == 0) current_cqi = sched_ctrl->rx_csi_report.CQI;
+      
+      if (current_cqi > 0) {
+        // MCS adaptativo baseado em CQI com limite realista
+        sched_pssch->mcs = min(max_mcs, 9);  // Usar CQI-calculated com limite 16
+
+        // Log para monitorar adaptação
+        if (frameP % 100 == 0) {
+          printf(" MCS: %d (CQI=%d, max_possible=%d)\n", 
+                sched_pssch->mcs, current_cqi, max_mcs);
+          printf("\n\n--------Current CQI=%d ----------------\n\n",current_cqi);
+          
+          // Print channel parameters from rfsimulator if available
+          channel_desc_t *ch_desc = find_channel_desc_fromname("rfsimu_channel_ue0");
+          if (ch_desc != NULL) {
+            printf("=== Channel Parameters (rfsimu_channel_ue0) ===\n");
+            printf("CQI: %d\n", current_cqi);
+            printf("Channel Offset: %d samples\n", ch_desc->channel_offset);
+            printf("Noise Power dB: %.2f dB\n", ch_desc->noise_power_dB);
+            printf("Forgetting Factor: %.6f\n", ch_desc->forgetting_factor);
+            printf("Path Loss dB: %.2f dB\n", ch_desc->path_loss_dB);
+            printf("============================================\n\n");
+          } else {
+            printf("=== Channel Parameters ===\n");
+            printf("CQI: %d\n", current_cqi);
+            printf("Note: Channel model 'rfsimu_channel_ue0' not found\n");
+            printf("Check /targets/PROJECTS/NR-SIDELINK/CONF/channelmod_rfsimu.conf\n");
+            printf("==========================\n\n");
+          }
+        }
+      } else {
+        sched_pssch->mcs = get_mcs_from_bler(sl_bo, stats, &sched_ctrl->sl_bler_stats, max_mcs, frameP);
+      }
+    }
 
   uint16_t sl_max_num_reserve = *mac->sl_tx_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16;
   /*

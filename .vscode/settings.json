@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "pdcp.h": "c",
+        "gtp_itf.h": "c",
+        "nr_common.h": "c",
+        "nr_transport_proto_ue.h": "c"
+    }
+}
