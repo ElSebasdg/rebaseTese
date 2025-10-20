@@ -6,7 +6,7 @@ if [ $# -lt 2 ] || [ $# -gt 3 ]; then
 fi
 
 # Navigate to the correct build directory
-cd ran_build/build
+cd ran_build/build || exit 1
 
 MODE=$1
 ROLE=$2
@@ -19,7 +19,6 @@ if [ $# -eq 3 ] && [ "$3" == "--telnet" ]; then
 fi
 
 #  RFSIM MODE
-
 if [[ "$MODE" == "--rfsim" && "$ROLE" == "--syncref" ]]; then
   CMD="sudo ./nr-uesoftmodem --rfsim -O $CONF_DIR/sl_sync_ref.conf --sl-mode 2 --sa --sync-ref --rfsimulator.serveraddr server --rfsimulator.serverport 4048"
 
@@ -30,7 +29,6 @@ elif [[ "$MODE" == "--rfsim" && "$ROLE" == "--ue2" ]]; then
   CMD="sudo ./nr-uesoftmodem --rfsim -O $CONF_DIR/sl_ue2.conf --sl-mode 2 --sa --rfsimulator.serveraddr 11.0.20.1 --rfsimulator.serverport 4048"
 
 #  USRP MODE
-
 elif [[ "$MODE" == "--usrp" && "$ROLE" == "--syncref" ]]; then
   CMD="sudo ./nr-uesoftmodem -O $CONF_DIR/sl_sync_ref.conf --sa -E --sl-mode 2 --sync-ref --usrp-args \"type=b200,master_clock_rate=46.08e6,enable_gps=true\" --ue-txgain 10 --ue-rxgain 100 --thread-pool -1,-1,-1,-1 --clock-source 2 --time-source 2"
 
@@ -46,7 +44,8 @@ else
   exit 1
 fi
 
+# Append telnet option if requested
+CMD="$CMD $TELNET_OPTION"
+
 echo "Executing: $CMD"
 eval $CMD
-
-

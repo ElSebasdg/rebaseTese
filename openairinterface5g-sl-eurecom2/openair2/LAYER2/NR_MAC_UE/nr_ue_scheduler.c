@@ -3804,11 +3804,11 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
                                               sl_ind->slot_type);
 
 
-  //  comment is_psbch_rx_slot is true only if sync_source is SYNC_REF_UE and
-  if (is_psbch_rx_slot) {
-    LOG_W(NR_MAC, "is_psbch_rx_slot: %d, Frame: %d,Slot: %d, slot_type %d, rx_slss_id %d, sync_source %d\n",
-          is_psbch_rx_slot, frame, slot, sl_ind->slot_type, sl_cfg->sl_sync_source.rx_slss_id, get_nrUE_params()->sync_ref);
-  }
+  // //  comment is_psbch_rx_slot is true only if sync_source is SYNC_REF_UE and
+  // if (is_psbch_rx_slot) {
+  //   LOG_W(NR_MAC, "is_psbch_rx_slot: %d, Frame: %d,Slot: %d, slot_type %d, rx_slss_id %d, sync_source %d\n",
+  //         is_psbch_rx_slot, frame, slot, sl_ind->slot_type, sl_cfg->sl_sync_source.rx_slss_id, get_nrUE_params()->sync_ref);
+  // }
 
 
   if (is_psbch_rx_slot &&

@@ -1412,8 +1412,8 @@ static void handle_sl_bch(module_id_t module_id,uint8_t *const sl_mib,
                           uint16_t slot_rx,
                           uint16_t rx_slss_id)
 {
-  LOG_I(NR_MAC," handle_sl_bch CALLED \n");
-  LOG_I(NR_MAC," decode SL-MIB %d\n",rx_slss_id);
+  // LOG_I(NR_MAC," handle_sl_bch CALLED \n");
+  // LOG_I(NR_MAC," decode SL-MIB %d\n",rx_slss_id);
 
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
@@ -1432,9 +1432,9 @@ static void handle_sl_bch(module_id_t module_id,uint8_t *const sl_mib,
   uint8_t slot =  ((sl_mib[2] & 0x01) << 6) | ((sl_mib[3] & 0xFC) >> 2);
   mac->is_synced = true;
 
-  LOG_I(NR_MAC, "%s[UE%d]In %d:%d Received SL-MIB:%x .Contents- SL-TDD config:%x, Incov:%d, FN:%d, Slot:%d\n",KRED,
-                                      module_id, frame_rx, slot_rx,*((uint32_t *)sl_mib),
-                                       *((uint16_t *)sl_tdd_config), incov,frame, slot);
+  // LOG_I(NR_MAC, "%s[UE%d]In %d:%d Received SL-MIB:%x .Contents- SL-TDD config:%x, Incov:%d, FN:%d, Slot:%d\n",KRED,
+  //                                     module_id, frame_rx, slot_rx,*((uint32_t *)sl_mib),
+  //                                      *((uint16_t *)sl_tdd_config), incov,frame, slot);
 
   sl_mac->decoded_DFN = frame;
   sl_mac->decoded_slot = slot;
