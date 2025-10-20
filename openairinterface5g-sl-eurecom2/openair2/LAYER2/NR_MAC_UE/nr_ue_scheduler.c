@@ -3835,8 +3835,8 @@ uint8_t nr_ue_sl_psbch_scheduler(nr_sidelink_indication_t *sl_ind,
     
     if (is_psbch_tx_slot &&
         sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
-      LOG_W(NR_MAC, "is_psbch_tx_slot: %d, Frame: %d,Slot: %d, slot_type %d, sync_source %d\n",
-          is_psbch_tx_slot, frame, slot, sl_ind->slot_type, get_nrUE_params()->sync_ref);
+      // LOG_W(NR_MAC, "is_psbch_tx_slot: %d, Frame: %d,Slot: %d, slot_type %d, sync_source %d\n",
+      //     is_psbch_tx_slot, frame, slot, sl_ind->slot_type, get_nrUE_params()->sync_ref);
       *config_type = SL_NR_CONFIG_TYPE_TX_PSBCH;
       tx_config->number_pdus = 1;
       tx_config->sfn = frame;
@@ -4018,7 +4018,7 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   }
   // log to check conditions before calling pssch scheduler
   //LOG_I(NR_MAC, "Is UE synced:-> %d,  %4d.%2d resource: %p, is_psbch_slot: %d, tx_allowed %d, slot_type %d\n", mac->is_synced,
-        frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
+        //frame, slot, resource, is_psbch_slot, tx_allowed, sl_ind->slot_type);
    
   if (resource && mac->is_synced && !is_psbch_slot && tx_allowed && sl_ind->slot_type == SIDELINK_SLOT_TYPE_TX) {
     //Check if reserved slot or a sidelink resource configured in Rx/Tx resource pool timeresource bitmap
