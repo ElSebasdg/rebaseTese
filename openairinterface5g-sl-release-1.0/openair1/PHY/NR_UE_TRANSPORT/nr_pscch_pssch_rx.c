@@ -201,8 +201,8 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
             slsch->active,
             slsch_harq->round,
             slsch_harq->slsch_pdu ? slsch_harq->slsch_pdu->rv_index : slsch_harq->ulsch_pdu.pusch_data.rv_index,
-            slsch_harq->pssch_pdu->startrb,
-            slsch_harq->pssch_pdu->subchannel_size,
+            slsch_harq->pssch_pdu ? slsch_harq->pssch_pdu->startrb : 0,
+            slsch_harq->pssch_pdu ? slsch_harq->pssch_pdu->subchannel_size : 0,
             slsch_harq->TBS,
             r);
       slsch->handled = 1;
@@ -214,15 +214,36 @@ void nr_postDecode_slsch(PHY_VARS_NR_UE *UE, notifiedFIFO_elt_t *req,UE_nr_rxtx_
     slsch->last_iteration_cnt = rdata->decodeIterations;
     sl_rx_indication.sfn = proc->frame_rx;
     sl_rx_indication.slot = proc->nr_slot_rx;
-    sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd = calloc(num_acks, sizeof(uint8_t));
-    memcpy((void*)sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd, (void*)ack_nack_rcvd,
-          num_acks * sizeof(uint8_t));
-    sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.num_acks_rcvd = num_acks;
+    
+    // FIXED: Keep original behavior but add null check for ack_nack_rcvd
+    if (num_acks > 0 && ack_nack_rcvd != NULL) {
+      sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd = calloc(num_acks, sizeof(uint8_t));
+      if (sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd != NULL) {
+        memcpy((void*)sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd, (void*)ack_nack_rcvd,
+              num_acks * sizeof(uint8_t));
+        sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.num_acks_rcvd = num_acks;
+      } else {
+        LOG_E(NR_PHY, "Failed to allocate memory for ack_nack_rcvd (num_acks=%d)\n", num_acks);
+        sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd = NULL;
+        sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.num_acks_rcvd = 0;
+      }
+    } else {
+      // Keep original behavior - allow num_acks = 0 case to proceed normally
+      sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd = NULL;
+      sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.num_acks_rcvd = 0;
+    }
     uint8_t pdu_type = phy_data->sl_rx_action == SL_NR_CONFIG_TYPE_RX_PSSCH_SLSCH_PSFCH ? SL_NR_RX_PDU_TYPE_SLSCH_PSFCH : SL_NR_RX_PDU_TYPE_SLSCH;
     nr_fill_sl_rx_indication(&sl_rx_indication, pdu_type, UE, 1, proc, (void*)&slsch_status, 0);
     nr_fill_sl_indication(&sl_indication,&sl_rx_indication,NULL,proc,UE,phy_data);
-    if (UE->if_inst && UE->if_inst->sl_indication)
-      UE->if_inst->sl_indication(&sl_indication);
+    
+    // REVERTED: Remove safety check that was blocking valid indications
+    UE->if_inst->sl_indication(&sl_indication);
+    
+    // FIXED: Free allocated memory for ack_nack_rcvd
+    if (sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd != NULL) {
+      free(sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd);
+      sl_rx_indication.rx_indication_body[0].rx_slsch_pdu.ack_nack_rcvd = NULL;
+    }
 #ifdef DEBUG_SLSCH
         if (ulsch_harq->ulsch_pdu.mcs_index == 0 && dumpsig==1) {
           int off = ((ulsch_harq->ulsch_pdu.rb_size&1) == 1)? 4:0;

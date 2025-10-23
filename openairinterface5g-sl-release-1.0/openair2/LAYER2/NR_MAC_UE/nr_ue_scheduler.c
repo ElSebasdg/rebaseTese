@@ -3203,12 +3203,22 @@ void sl_adjust_indices_based_on_timing(uint32_t frame, uint32_t slot,
 {
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
+  if (mac == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] sl_adjust_indices_based_on_timing: mac is NULL for mod_id=%d!\n", mod_id);
+    return;
+  }
+
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
+  if (sl_mac == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] sl_adjust_indices_based_on_timing: SL_MAC_PARAMS is NULL for mod_id=%d!\n", mod_id);
+    return;
+  }
 
   uint16_t frame_16 = frame % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_in_16frames = (frame_16 * slots_per_frame) + slot;
   uint16_t frame_tx_16 = frame_tx % SL_NR_SSB_REPETITION_IN_FRAMES;
   uint32_t slot_tx_in_16frames = (frame_tx_16 * slots_per_frame) + slot_tx;
+
   LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on RX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
                                         mod_id, frame, slot, frame_16, slot_in_16frames);
   LOG_I(NR_MAC,"[UE%d]PSBCH params adjusted based on TX current timing %d:%d. frame_16:%d, slot_in_16frames:%d\n",
@@ -3288,8 +3298,15 @@ uint8_t sl_determine_if_SSB_slot(uint16_t frame, uint16_t slot, uint16_t slots_p
 
 static void nr_store_slsch_buffer(NR_UE_MAC_INST_t *mac, frame_t frame, sub_frame_t slot) {
 
-  NR_SL_UEs_t *UE_info = &mac->sl_info;
-  SL_UE_iterator(UE_info->list, UE) {
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] == NULL) continue;
+    
+    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
+    if (!UE->UE_sched_ctrl.sched_psfch) {
+      continue;
+    }
+
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     sched_ctrl->num_total_bytes = 0;
     sched_ctrl->sl_pdus_total = 0;
@@ -3355,8 +3372,15 @@ void preprocess(NR_UE_MAC_INST_t *mac,
   int scs = sl_mac->sl_phy_config.sl_config_req.sl_bwp_config.sl_scs;
   const int nr_slots_frame = nr_slots_per_frame[scs];
 
-  NR_SL_UEs_t *UE_info = &mac->sl_info;
-  SL_UE_iterator(UE_info->list, UE) {
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] == NULL) continue;
+    
+    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
+    if (!UE->UE_sched_ctrl.sched_psfch) {
+      continue;
+    }
+
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     UE->mac_sl_stats.sl.current_bytes = 0;
     UE->mac_sl_stats.sl.current_rbs = 0;
@@ -3458,14 +3482,17 @@ bool nr_ue_sl_pssch_scheduler(NR_UE_MAC_INST_t *mac,
 
   NR_SL_UEs_t *UE_info = &mac->sl_info;
 
-  if (*(UE_info->list) == NULL) {
-    LOG_D(NR_MAC, "UE list is empty\n");
-    return is_resource_allocated;
-  }
-
   preprocess(mac, frame, slot, &feedback_frame, &feedback_slot, sl_bwp, configured_PSFCH);
 
-  SL_UE_iterator(UE_info->list, UE) {
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] == NULL) continue;
+    
+    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
+    if (!UE->UE_sched_ctrl.sched_psfch) {
+      continue;
+    }
+
     NR_mac_dir_stats_t *sl_mac_stats = &UE->mac_sl_stats.sl;
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     sl_mac_stats->current_bytes = 0;
@@ -3889,6 +3916,43 @@ void nr_ue_sidelink_scheduler(nr_sidelink_indication_t *sl_ind) {
   }
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
+  if (mac == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] nr_ue_sidelink_scheduler: mac is NULL for mod_id=%d!\n", mod_id);
+    return;
+  }
+
+  // Debug connected UEs status (reduced frequency)
+  static int debug_counter = 0;
+  if (debug_counter++ % 500 == 0) { // Print every 500 calls to avoid spam
+    LOG_I(NR_MAC, "[SL_DEBUG] Sidelink scheduler called for mod_id=%d, frame=%d, slot=%d\n", mod_id, frame, slot);
+    int connected_count = 0;
+    int active_count = 0;
+    for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+      if (mac->sl_info.list[i] != NULL) {
+        connected_count++;
+        // Check if UE has any HARQ activity
+        bool has_activity = (mac->sl_info.list[i]->UE_sched_ctrl.available_sl_harq.len < 16) ||
+                            (mac->sl_info.list[i]->UE_sched_ctrl.feedback_sl_harq.len > 0) ||
+                            (mac->sl_info.list[i]->UE_sched_ctrl.retrans_sl_harq.len > 0);
+        if (has_activity) {
+          active_count++;
+          LOG_I(NR_MAC, "  ACTIVE UE[%d] uid=%d\n", i, mac->sl_info.list[i]->uid);
+        }
+      }
+    }
+    LOG_I(NR_MAC, "  Total UEs: allocated=%d, active=%d\n", connected_count, active_count);
+
+    // Show PSFCH configuration status
+    if (mac->sl_tx_res_pool && mac->sl_tx_res_pool->sl_PSFCH_Config_r16 &&
+        mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup &&
+        mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16) {
+      uint8_t psfch_period = *mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16;
+      LOG_I(NR_MAC, "  PSFCH Period = %d (enabled)\n", psfch_period);
+    } else {
+      LOG_W(NR_MAC, "  PSFCH is disabled or not configured!\n");
+    }
+  }
+
   sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
   sl_nr_phy_config_request_t *sl_cfg = &sl_mac->sl_phy_config.sl_config_req;
 
@@ -4082,15 +4146,21 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list = CALLOC(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
   sl_nr_tx_rx_config_psfch_pdu_t *psfch_pdu_list = tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.psfch_pdu_list;
   int k = 0;
-  for (int i = 0; i < (n_ul_slots_period * num_subch); i++) {
-    SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch[i];
-    LOG_D(NR_MAC,"frame.slot: feedback %4d.%2d, current (%4d.%2d)\n",
-          sched_psfch->feedback_frame, sched_psfch->feedback_slot, frame, slot);
-    if (sched_psfch->feedback_slot == slot && sched_psfch->feedback_frame == frame) {
-      sl_ind->slot_tx = sched_psfch->feedback_slot;
-      sl_ind->frame_tx = sched_psfch->feedback_frame;
-      sl_ind->slot_type = SIDELINK_SLOT_TYPE_TX;
-      AssertFatal(k < psfch_period*num_subch, "Number of PSFCH pdus cannot exceed %ld\n", psfch_period * num_subch);
+
+  // FIXED: Check all UEs instead of just [0], with null checks
+  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+    if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
+      continue;
+
+    for (int i = 0; i < (n_ul_slots_period * num_subch); i++) {
+      SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch[i];
+      LOG_D(NR_MAC,"UE %d frame.slot: feedback %4d.%2d, current (%4d.%2d)\n",
+            ue_idx, sched_psfch->feedback_frame, sched_psfch->feedback_slot, frame, slot);
+      if (sched_psfch->feedback_slot == slot && sched_psfch->feedback_frame == frame) {
+        sl_ind->slot_tx = sched_psfch->feedback_slot;
+        sl_ind->frame_tx = sched_psfch->feedback_frame;
+        sl_ind->slot_type = SIDELINK_SLOT_TYPE_TX;
+        AssertFatal(k < psfch_period*num_subch, "Number of PSFCH pdus cannot exceed %ld\n", psfch_period * num_subch);
       fill_psfch_pdu(sched_psfch, &psfch_pdu_list[k], num_psfch_symbols);
       *config_type = SL_NR_CONFIG_TYPE_TX_PSCCH_PSSCH_PSFCH;
       tx_config->number_pdus = 1;
@@ -4103,6 +4173,7 @@ void nr_ue_sl_psfch_scheduler(NR_UE_MAC_INST_t *mac,
       sched_psfch->harq_feedback = -1;
       k++;
     }
+    } // end UE loop
   }
   tx_config->tx_config_list[0].tx_pscch_pssch_config_pdu.num_psfch_pdus = k;
 }

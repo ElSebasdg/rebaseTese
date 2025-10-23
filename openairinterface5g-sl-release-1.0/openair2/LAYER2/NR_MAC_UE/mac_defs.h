@@ -536,9 +536,9 @@ typedef struct {
 
 } NR_SL_UE_sched_ctrl_t;
 
-#define CUR_SL_UE_CONNECTIONS 1
+#define CUR_SL_UE_CONNECTIONS 4
 
-#define MAX_SL_CSI_REPORTCONFIG MAX_SL_UE_CONNECTIONS
+#define MAX_SL_CSI_REPORTCONFIG CUR_SL_UE_CONNECTIONS
 
 typedef struct {
   uid_t uid; // unique ID of this UE
@@ -551,7 +551,7 @@ typedef struct {
 
 typedef struct {
 
-  NR_SL_UE_info_t *list[MAX_SL_UE_CONNECTIONS+1];
+  NR_SL_UE_info_t *list[CUR_SL_UE_CONNECTIONS+1];
   uid_allocator_t ue_allocator;
   pthread_mutex_t mutex;
 } NR_SL_UEs_t;

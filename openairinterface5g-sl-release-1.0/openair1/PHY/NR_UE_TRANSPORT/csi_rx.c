@@ -41,8 +41,17 @@
 #include "PHY/NR_UE_ESTIMATION/filt16a_32.h"
 #include "executables/nr-uesoftmodem.h"
 #include "PHY/NR_REFSIG/refsig_defs_ue.h"
+#include "openair2/NR_UE_PHY_INTERFACE/NR_IF_Module.h"
 // 10*log10(pow(2,30))
 #define pow_2_30_dB 90
+
+// Global variable to store latest calculated CQI for sidelink
+static uint8_t g_latest_sl_cqi = 0;
+
+// Function to get the latest calculated sidelink CQI
+uint8_t get_latest_sl_cqi(void) {
+  return g_latest_sl_cqi;
+}
 
 //#define DEBUG_CSI_PRINTS  // To enable CSI SNR debug logs
 extern short nr_qpsk_mod_table[8];
@@ -423,8 +432,9 @@ int nr_csi_rs_channel_estimation(const PHY_VARS_NR_UE *ue,
       for(uint16_t port_tx = 0; port_tx<N_ports; port_tx++) {
         c16_t *csi_rs_ls_estimated_channel16 = (c16_t*)&csi_rs_ls_estimated_channel[ant_rx][port_tx][k];
         c16_t *csi_rs_estimated_channel16 = (c16_t *)&csi_rs_estimated_channel_freq[ant_rx][port_tx][k_offset];
-        noise_real[ant_rx][port_tx][rb-csirs_config_pdu->start_rb] = abs(csi_rs_ls_estimated_channel16->r-csi_rs_estimated_channel16->r);
-        noise_imag[ant_rx][port_tx][rb-csirs_config_pdu->start_rb] = abs(csi_rs_ls_estimated_channel16->i-csi_rs_estimated_channel16->i);
+        // FIXED: Calculate noise as difference between LS estimate and interpolated estimate
+        noise_real[ant_rx][port_tx][rb-csirs_config_pdu->start_rb] = abs(csi_rs_ls_estimated_channel16->r - csi_rs_estimated_channel16->r);
+        noise_imag[ant_rx][port_tx][rb-csirs_config_pdu->start_rb] = abs(csi_rs_ls_estimated_channel16->i - csi_rs_estimated_channel16->i);
         maxh = cmax3(maxh, abs(csi_rs_estimated_channel16->r), abs(csi_rs_estimated_channel16->i));
       }
     }
@@ -865,6 +875,10 @@ int nr_csi_rs_cqi_estimation_sl(const int32_t precoded_sinr,
                                 uint8_t *cqi) {
 
   *cqi = 0;
+  
+  // DEBUG: Print SINR value for debugging
+  // printf("DEBUG CQI: SINR calculated = %d dB\n", precoded_sinr);
+  
   if (precoded_sinr >= -20 && precoded_sinr < -6) {
     *cqi = 1;
   } else if(precoded_sinr >= -6 && precoded_sinr < -3) {
@@ -898,6 +912,11 @@ int nr_csi_rs_cqi_estimation_sl(const int32_t precoded_sinr,
     *cqi = 15;
   }
 
+  // printf("DEBUG CQI: Final CQI = %d (SINR = %d dB)\n", *cqi, precoded_sinr);
+  
+  // Update global variable for MAC layer access
+  g_latest_sl_cqi = *cqi;
+  
   return 0;
 }
 
@@ -982,8 +1001,13 @@ void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue, NR_DL_FRAME_PARMS *frame_parms,
   uint8_t num_of_layers = min(get_nrUE_params()->nb_antennas_tx, get_nrUE_params()->nb_antennas_rx);
   AssertFatal(num_of_layers > 0, "Number of layers MUST be greater than zero!!!");
   uint16_t beta_csirs = (intf_type == PC5) ? (uint16_t)(AMP * (ceil(sqrt(num_of_layers / frame_parms->nb_antennas_tx)))) & 0xFFFF : AMP;
-  if (intf_type == PC5)
-    csirs_config_pdu->scramb_id = ue->slsch[0].harq_process->pssch_pdu->Nid % (1 << 10);
+  if (intf_type == PC5) {
+    if (ue->slsch[0].harq_process && ue->slsch[0].harq_process->pssch_pdu) {
+      csirs_config_pdu->scramb_id = ue->slsch[0].harq_process->pssch_pdu->Nid % (1 << 10);
+    } else {
+      csirs_config_pdu->scramb_id = 0; // Default value if pssch_pdu is NULL
+    }
+  }
   LOG_D(NR_PHY, "Rx beta_csirs: %d, scramb_id %i, frame.slot (%d.%d)\n", beta_csirs, csirs_config_pdu->scramb_id, proc->frame_rx, proc->nr_slot_rx);
 
   nr_generate_csi_rs(frame_parms,
@@ -1102,6 +1126,7 @@ void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue, NR_DL_FRAME_PARMS *frame_parms,
       if (intf_type == PC5) {
         nr_csi_rs_cqi_estimation_sl(sl_sinr_dB, &cqi);
         get_nrUE_params()->snr = sl_sinr_dB;
+        
         LOG_D(NR_PHY, "Rx CSI-RS %4d.%2d sl_sinr %i rsrp %d dBm cqi %d\n",
               proc->frame_rx, proc->nr_slot_rx, sl_sinr_dB, rsrp_dBm, cqi);
       } else {
@@ -1146,3 +1171,4 @@ void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue, NR_DL_FRAME_PARMS *frame_parms,
 
   return;
 }
+

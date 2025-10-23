@@ -27,6 +27,110 @@
 
 #define SL_DEBUG
 
+// Helper function to find SL UE by source ID
+static NR_SL_UE_info_t *find_sl_ue_by_src_id(NR_UE_MAC_INST_t *mac, uint32_t src_id) {
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] != NULL && mac->sl_info.list[i]->uid == src_id) {
+      return mac->sl_info.list[i];
+    }
+  }
+  return NULL;
+}
+
+// Helper function to get first available SL UE (fallback when specific UID is not needed)
+static NR_SL_UE_info_t *get_first_sl_ue(NR_UE_MAC_INST_t *mac) {
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] != NULL) {
+      return mac->sl_info.list[i];
+    }
+  }
+  return NULL;
+}
+
+// Debug function to print connected UEs
+static void print_connected_sl_ues(NR_UE_MAC_INST_t *mac, const char *context) {
+  int allocated_count = 0;
+  int active_count = 0;
+  
+  // Only print detailed info occasionally to avoid spam
+  static int print_counter = 0;
+  bool detailed_print = (print_counter++ % 100 == 0);
+  
+  if (detailed_print) {
+    LOG_I(NR_MAC, "[SL_DEBUG] %s - SL UE status (src_id=%d):\n", context, mac->src_id);
+  }
+  
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] != NULL) {
+      allocated_count++;
+      
+      // Check if UE has any active HARQ processes or recent activity
+      bool has_activity = (mac->sl_info.list[i]->UE_sched_ctrl.available_sl_harq.len < 16) ||
+                          (mac->sl_info.list[i]->UE_sched_ctrl.feedback_sl_harq.len > 0) ||
+                          (mac->sl_info.list[i]->UE_sched_ctrl.retrans_sl_harq.len > 0);
+      
+      if (has_activity) {
+        active_count++;
+        if (detailed_print) {
+          LOG_I(NR_MAC, "  [%d] ACTIVE UE uid=%d, available_harq=%d, feedback_harq=%d, retrans_harq=%d\n", 
+                i, mac->sl_info.list[i]->uid,
+                mac->sl_info.list[i]->UE_sched_ctrl.available_sl_harq.len,
+                mac->sl_info.list[i]->UE_sched_ctrl.feedback_sl_harq.len,
+                mac->sl_info.list[i]->UE_sched_ctrl.retrans_sl_harq.len);
+        }
+      } else if (detailed_print) {
+        LOG_D(NR_MAC, "  [%d] Pre-allocated UE uid=%d (no activity)\n", i, mac->sl_info.list[i]->uid);
+      }
+    }
+  }
+  
+  if (detailed_print) {
+    if (allocated_count == 0) {
+      LOG_W(NR_MAC, "  [WARNING] No UEs allocated in sl_info.list!\n");
+    } else {
+      LOG_I(NR_MAC, "  [INFO] Total pre-allocated UEs: %d, Active UEs: %d\n", allocated_count, active_count);
+    }
+  }
+}
+
+// Function to ensure sched_psfch is initialized for a UE
+static void ensure_sched_psfch_initialized(NR_UE_MAC_INST_t *mac, NR_SL_UE_info_t *sl_ue) {
+  LOG_I(NR_MAC, "[SL_INIT] === ENSURE_SCHED_PSFCH === UE uid=%d, sl_ue=%p\n", sl_ue->uid, sl_ue);
+  
+  if (sl_ue->UE_sched_ctrl.sched_psfch != NULL) {
+    LOG_I(NR_MAC, "[SL_INIT] sched_psfch already initialized for UE uid=%d\n", sl_ue->uid);
+    return; // Already initialized
+  }
+  
+  LOG_I(NR_MAC, "[SL_INIT] Initializing sched_psfch for UE uid=%d...\n", sl_ue->uid);
+  
+  sl_nr_ue_mac_params_t *sl_mac = mac->SL_MAC_PARAMS;
+  if (!sl_mac || !sl_mac->sl_TDD_config) {
+    LOG_E(NR_MAC, "[SL_ERROR] Cannot initialize sched_psfch: missing TDD config for UE uid=%d\n", sl_ue->uid);
+    return;
+  }
+  
+  // Calculate the required size
+  int scs = get_softmodem_params()->numerology;
+  const int nr_slots_frame = nr_slots_per_frame[scs];
+  NR_TDD_UL_DL_Pattern_t *tdd = &sl_mac->sl_TDD_config->pattern1;
+  const int n_ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0 ? 1 : 0) : nr_slots_frame;
+  uint16_t num_subch = sl_get_num_subch(mac->sl_tx_res_pool);
+  
+  LOG_I(NR_MAC, "[SL_INIT] Allocating sched_psfch: size=%d (n_ul_slots=%d * num_subch=%d)\n", 
+        n_ul_slots_period * num_subch, n_ul_slots_period, num_subch);
+  
+  // Allocate and initialize
+  sl_ue->UE_sched_ctrl.sched_psfch = calloc(n_ul_slots_period * num_subch, sizeof(SL_sched_feedback_t));
+  if (sl_ue->UE_sched_ctrl.sched_psfch) {
+    sl_ue->UE_sched_ctrl.sched_psfch->feedback_frame = -1;
+    sl_ue->UE_sched_ctrl.sched_psfch->feedback_slot = -1;
+    LOG_I(NR_MAC, "[SL_INIT] SUCCESS: Lazy initialized sched_psfch for UE uid=%d\n", sl_ue->uid);
+  } else {
+    LOG_E(NR_MAC, "[SL_ERROR] Failed to allocate sched_psfch for UE uid=%d!\n", sl_ue->uid);
+  }
+}
+
 static const int sequence_cyclic_shift_harq_ack_or_ack_or_only_nack[2]
 /* Sequence cyclic shift */ = {  0, 6 };
 
@@ -765,7 +869,26 @@ int nr_ue_sl_acknack_scheduling(NR_UE_MAC_INST_t *mac, sl_nr_rx_indication_t *rx
 
   psfch_slot = get_feedback_slot(psfch_period, slot);
   const int psfch_index = get_psfch_index(rx_ind->sfn, rx_ind->slot, nr_slots_frame, tdd, n_ul_buf_max_size);
-  NR_SL_UE_sched_ctrl_t  *sched_ctrl = &mac->sl_info.list[0]->UE_sched_ctrl;
+  
+  // Debug connected UEs and find appropriate UE for feedback
+  //print_connected_sl_ues(mac, "sl_acknack_scheduling");
+  
+  // Get the first available UE for feedback scheduling
+  NR_SL_UE_info_t *sl_ue = get_first_sl_ue(mac);
+  if (sl_ue == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] sl_acknack_scheduling: No SL UE available! Cannot schedule feedback.\n");
+    return -1;
+  }
+  
+  // Ensure sched_psfch is initialized for this UE
+  ensure_sched_psfch_initialized(mac, sl_ue);
+  
+  NR_SL_UE_sched_ctrl_t  *sched_ctrl = &sl_ue->UE_sched_ctrl;
+  if (sched_ctrl->sched_psfch == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] sl_acknack_scheduling: sched_psfch initialization failed for UE uid=%d!\n", sl_ue->uid);
+    return -1;
+  }
+  
   SL_sched_feedback_t  *curr_psfch = &sched_ctrl->sched_psfch[psfch_index];
   psfch_frame = frame;
   frameslot_t fs;
@@ -800,7 +923,22 @@ void fill_psfch_params_tx(NR_UE_MAC_INST_t *mac, sl_nr_rx_indication_t *rx_ind,
 
   NR_SL_BWP_Generic_r16_t *sl_bwp = mac->sl_bwp->sl_BWP_Generic_r16;
 
-  SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch[psfch_index];
+  // Get the first available UE for PSFCH params
+  NR_SL_UE_info_t *sl_ue = get_first_sl_ue(mac);
+  if (sl_ue == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] fill_psfch_params_tx: No SL UE available!\n");
+    return;
+  }
+  
+  // Ensure sched_psfch is initialized for this UE
+  ensure_sched_psfch_initialized(mac, sl_ue);
+  
+  if (sl_ue->UE_sched_ctrl.sched_psfch == NULL) {
+    LOG_E(NR_MAC, "[SL_ERROR] fill_psfch_params_tx: sched_psfch initialization failed for UE uid=%d!\n", sl_ue->uid);
+    return;
+  }
+  
+  SL_sched_feedback_t  *sched_psfch = &sl_ue->UE_sched_ctrl.sched_psfch[psfch_index];
   LOG_D(NR_MAC, "psfch_period %ld, feedback frame:slot %d:%d, frame:slot %d:%d, harq feedback %d psfch_index %d\n",
         psfch_period,
         sched_psfch->feedback_frame,
@@ -845,10 +983,45 @@ void fill_psfch_params_tx(NR_UE_MAC_INST_t *mac, sl_nr_rx_indication_t *rx_ind,
 
 int find_current_slot_harqs(frame_t frame, sub_frame_t slot, NR_SL_UE_sched_ctrl_t * sched_ctrl, NR_UE_sl_harq_t **matched_harqs)
 {
+  // LOG_I(NR_MAC, "[SL_HARQ_FIND] === ENTER === find_current_slot_harqs frame=%d, slot=%d\n", frame, slot);
+  // LOG_I(NR_MAC, "[SL_HARQ_FIND] sched_ctrl=%p\n", sched_ctrl);
+  // LOG_I(NR_MAC, "[SL_HARQ_FIND] feedback_sl_harq.head=%d\n", sched_ctrl->feedback_sl_harq.head);
+  
+  // CRITICAL: Check if feedback_sl_harq is initialized
+  if (sched_ctrl->feedback_sl_harq.head == -1 && sched_ctrl->feedback_sl_harq.next == NULL) {
+    LOG_W(NR_MAC, "[SL_HARQ_FIND] WARNING: feedback_sl_harq not initialized! Initializing now...\n");
+    
+    // Initialize the missing lists
+    create_nr_list(&sched_ctrl->feedback_sl_harq, 16);
+    create_nr_list(&sched_ctrl->available_sl_harq, 16);  
+    create_nr_list(&sched_ctrl->retrans_sl_harq, 16);
+    
+    // Add all HARQ processes to available list (NOT to feedback list)
+    for (int harq = 0; harq < 16; harq++) {
+      add_tail_nr_list(&sched_ctrl->available_sl_harq, harq);
+    }
+    
+    LOG_I(NR_MAC, "[SL_HARQ_FIND] Emergency initialization completed for UE\n");
+  }
+  
   int cur = sched_ctrl->feedback_sl_harq.head;
   int k = 0;
+  
+  // LOG_I(NR_MAC, "[SL_HARQ_FIND] Starting loop with cur=%d\n", cur);
   while (cur != -1) {
+    // LOG_I(NR_MAC, "[SL_HARQ_FIND] Processing cur=%d\n", cur);
+    // LOG_I(NR_MAC, "[SL_HARQ_FIND] Accessing sl_harq_processes[%d]...\n", cur);
+    
+    // Add safety check
+    if (cur < 0 || cur >= 16) {
+      LOG_E(NR_MAC, "[SL_HARQ_FIND] ERROR: Invalid cur=%d (must be 0-15)\n", cur);
+      break;
+    }
+    
     NR_UE_sl_harq_t *harq = &sched_ctrl->sl_harq_processes[cur];
+    // LOG_I(NR_MAC, "[SL_HARQ_FIND] Got harq=%p\n", harq);
+    // LOG_I(NR_MAC, "[SL_HARQ_FIND] Accessing harq fields...\n");
+    
     LOG_D(NR_MAC, "%s %4d.%2d feedback %4d.%2d\n", __FUNCTION__, frame, slot, harq->feedback_frame, harq->feedback_slot);
     if (harq->feedback_frame == frame && harq->feedback_slot == slot) {
       if (matched_harqs) {
@@ -863,8 +1036,12 @@ int find_current_slot_harqs(frame_t frame, sub_frame_t slot, NR_SL_UE_sched_ctrl
       }
       k++;
     }
+    // LOG_I(NR_MAC, "[SL_HARQ_FIND] Accessing next[%d]...\n", cur);
     cur = sched_ctrl->feedback_sl_harq.next[cur];
+    // LOG_I(NR_MAC, "[SL_HARQ_FIND] Next cur=%d\n", cur);
   }
+  
+  // LOG_I(NR_MAC, "[SL_HARQ_FIND] === EXIT === returning k=%d\n", k);
   return k;
 }
 
@@ -907,16 +1084,19 @@ void configure_psfch_params_rx(int module_idP,
                         ? psfch_periods[*sl_psfch_config->sl_PSFCH_Period_r16] : 0;
   uint16_t num_subch = sl_get_num_subch(mac->sl_rx_res_pool);
   rx_config->sl_rx_config_list[0].rx_psfch_pdu_list = calloc(psfch_period*num_subch, sizeof(sl_nr_tx_rx_config_psfch_pdu_t));
-  NR_SL_UEs_t *UE_info = &mac->sl_info;
-
-  if (*(UE_info->list) == NULL) {
-    LOG_D(NR_MAC, "UE list is empty\n");
-    return;
-  }
 
   psfch_params_t *psfch_params = calloc(1, sizeof(psfch_params_t));
   compute_params(module_idP, psfch_params);
-  SL_UE_iterator(UE_info->list, UE) {
+  
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] == NULL) continue;
+    
+    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
+    if (!UE->UE_sched_ctrl.sched_psfch) {
+      continue;
+    }
+    
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     NR_UE_sl_harq_t **matched_harqs = (NR_UE_sl_harq_t **) calloc(sched_ctrl->feedback_sl_harq.len, sizeof(NR_UE_sl_harq_t *));
     int matched_sz = find_current_slot_harqs(frame, slot, sched_ctrl, matched_harqs);
@@ -990,24 +1170,37 @@ uint8_t sl_num_slsch_feedbacks(NR_UE_MAC_INST_t *mac) {
 }
 
 bool is_feedback_scheduled(NR_UE_MAC_INST_t *mac, int frameP,int slotP) {
-  for (int i = 0; i < sl_num_slsch_feedbacks(mac); i++) {
-    SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch[i];
-    LOG_D(NR_MAC, "frame.slot %4d.%2d, harq_feedback %d\n", frameP, slotP, sched_psfch->harq_feedback);
-    if (frameP == sched_psfch->feedback_frame && slotP == sched_psfch->feedback_slot && sched_psfch->harq_feedback) {
-      return true;
+  // Check feedback from all connected UEs
+  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+    if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
+      continue;
+      
+    for (int i = 0; i < sl_num_slsch_feedbacks(mac); i++) {
+      SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch[i];
+      LOG_D(NR_MAC, "UE[%d] frame.slot %4d.%2d, harq_feedback %d\n", ue_idx, frameP, slotP, sched_psfch->harq_feedback);
+      if (frameP == sched_psfch->feedback_frame && slotP == sched_psfch->feedback_slot && sched_psfch->harq_feedback) {
+        return true;
+      }
     }
   }
   return false;
 }
 
 void reset_sched_psfch(NR_UE_MAC_INST_t *mac, int frameP,int slotP) {
-
-  for (int i = 0; i < sl_num_slsch_feedbacks(mac); i++) {
-    SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[0]->UE_sched_ctrl.sched_psfch[i];
-    if (frameP == sched_psfch->feedback_frame && slotP == sched_psfch->feedback_slot) {
-      sched_psfch->feedback_frame = -1;
-      sched_psfch->feedback_slot = -1;
-      sched_psfch->harq_feedback = 0;
+  // Reset feedback from all connected UEs
+  for (int ue_idx = 0; ue_idx < CUR_SL_UE_CONNECTIONS; ue_idx++) {
+    if (mac->sl_info.list[ue_idx] == NULL || mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch == NULL)
+      continue;
+      
+    for (int i = 0; i < sl_num_slsch_feedbacks(mac); i++) {
+      SL_sched_feedback_t  *sched_psfch = &mac->sl_info.list[ue_idx]->UE_sched_ctrl.sched_psfch[i];
+      if (frameP == sched_psfch->feedback_frame && slotP == sched_psfch->feedback_slot) {
+        sched_psfch->feedback_frame = -1;
+        sched_psfch->feedback_slot = -1;
+        sched_psfch->harq_feedback = 0;
+        LOG_D(NR_MAC, "Reset PSFCH for UE[%d] uid=%d at %4d.%2d\n", 
+              ue_idx, mac->sl_info.list[ue_idx]->uid, frameP, slotP);
+      }
     }
   }
 }
@@ -1029,6 +1222,11 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
   }
 
   NR_SLSCH_MAC_SUBHEADER_FIXED *sl_sch_subheader = (NR_SLSCH_MAC_SUBHEADER_FIXED *) pduP;
+  
+  // Log when we receive data from a remote UE
+  LOG_I(NR_MAC, "[SL_RX_DATA] Received SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d, pdu_type=%d\n",
+        sl_sch_subheader->SRC, frame, slot, pdu_len, pdu_type);
+  
   uint8_t psfch_period = 0;
   if (mac->sl_tx_res_pool->sl_PSFCH_Config_r16 &&
       mac->sl_tx_res_pool->sl_PSFCH_Config_r16->choice.setup->sl_PSFCH_Period_r16)
@@ -1037,13 +1235,22 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     configure_psfch_params_tx(module_idP, mac, rx_ind, pdu_id);
   }
 
+  LOG_I(NR_MAC, "[SL_RX_DATA] === CALLING find_UE === SRC=%d, mac=%p\n", sl_sch_subheader->SRC, mac);
   NR_SL_UE_info_t *UE = find_UE(mac, sl_sch_subheader->SRC);
+  // LOG_I(NR_MAC, "[SL_RX_DATA] === find_UE RETURNED === UE=%p\n", UE);
 
-  if (UE == NULL)
+  if (UE == NULL) {
+    LOG_W(NR_MAC, "[SL_RX_DATA] Could not find UE with SRC=%d in sl_info list!\n", sl_sch_subheader->SRC);
     return;
+  } else {
+    // LOG_I(NR_MAC, "[SL_RX_DATA] Found UE with SRC=%d, uid=%d - Processing PDU\n", sl_sch_subheader->SRC, UE->uid);
+  }
 
+  // LOG_I(NR_MAC, "[SL_RX_DATA] === BEFORE PDU TYPE CHECK === pdu_type=%d\n", pdu_type);
   if (pdu_type == SL_NR_RX_PDU_TYPE_SLSCH_PSFCH) {
+    // LOG_I(NR_MAC, "[SL_RX_DATA] === CALLING handle_nr_ue_sl_harq === UE uid=%d\n", UE->uid);
     handle_nr_ue_sl_harq(module_idP, frame, slot, rx_slsch_pdu, sl_sch_subheader->SRC);
+    // LOG_I(NR_MAC, "[SL_RX_DATA] === handle_nr_ue_sl_harq RETURNED ===\n");
     int r0 = UE->mac_sl_stats.cumul_round[0];
     int r1 = UE->mac_sl_stats.cumul_round[1];
     int r2 = UE->mac_sl_stats.cumul_round[2];
@@ -1203,19 +1410,35 @@ void nr_ue_sl_csi_report_scheduling(int mod_id,
 
 NR_SL_UE_info_t* find_UE(NR_UE_MAC_INST_t *mac,
                          uint16_t nearby_ue_id) {
-  NR_SL_UEs_t *UE_info = &mac->sl_info;
-
-  if (*(UE_info->list) == NULL) {
-    LOG_D(NR_MAC, "UE list is empty\n");
+  // LOG_I(NR_MAC, "[SL_FIND_UE] === ENTER === Looking for UE with ID=%d\n", nearby_ue_id);
+  
+  // Safety check
+  if (!mac) {
+    LOG_E(NR_MAC, "[SL_FIND_UE] ERROR: mac is NULL!\n");
     return NULL;
   }
+  
+  // LOG_I(NR_MAC, "[SL_FIND_UE] mac=%p, checking sl_info structure...\n", mac);
 
-  SL_UE_iterator(UE_info->list, UE) {
-    LOG_D(NR_MAC, "%s: dest_id %d nearby id %d\n", __FUNCTION__, UE->uid, nearby_ue_id);
-    if((UE->uid == nearby_ue_id)) {
-      return UE;
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    // LOG_I(NR_MAC, "[SL_FIND_UE] Checking slot[%d]...\n", i);
+    
+    if (mac->sl_info.list[i] != NULL) {
+      // LOG_I(NR_MAC, "[SL_FIND_UE] Slot[%d] has UE at %p, checking uid...\n", i, mac->sl_info.list[i]);
+      
+      uint16_t ue_uid = mac->sl_info.list[i]->uid;
+      // LOG_I(NR_MAC, "[SL_FIND_UE] UE[%d] uid=%d vs target=%d\n", i, ue_uid, nearby_ue_id);
+      
+      if(ue_uid == nearby_ue_id) {
+        // LOG_I(NR_MAC, "[SL_FIND_UE] === FOUND === UE with uid=%d at slot[%d]!\n", ue_uid, i);
+        return mac->sl_info.list[i];
+      }
+    } else {
+      // LOG_I(NR_MAC, "[SL_FIND_UE] Slot[%d] is NULL\n", i);
     }
   }
+  
+  LOG_W(NR_MAC, "[SL_FIND_UE] === NOT FOUND === No UE found with ID=%d\n", nearby_ue_id);
   return NULL;
 }
 

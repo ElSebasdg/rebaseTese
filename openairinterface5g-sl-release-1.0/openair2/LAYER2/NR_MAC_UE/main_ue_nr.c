@@ -114,7 +114,16 @@ size_t dump_mac_stats_sl(NR_UE_MAC_INST_t *mac, char *output, size_t strlen, boo
   // NR_UE_SL_SCHED_ENSURE_LOCKED(&mac->sl_sched_lock);
 
   NR_UE_SL_SCHED_LOCK(&mac->sl_info.mutex);
-  SL_UE_iterator(mac->sl_info.list, UE) {
+  
+  for (int i = 0; i < CUR_SL_UE_CONNECTIONS; i++) {
+    if (mac->sl_info.list[i] == NULL) continue;
+    
+    NR_SL_UE_info_t *UE = mac->sl_info.list[i];
+    // Skip UEs that don't have sched_psfch initialized (avoid processing unused UEs)
+    if (!UE->UE_sched_ctrl.sched_psfch) {
+      continue;
+    }
+    
     NR_SL_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     NR_UE_sl_mac_stats_t *stats = &UE->mac_sl_stats;
 
