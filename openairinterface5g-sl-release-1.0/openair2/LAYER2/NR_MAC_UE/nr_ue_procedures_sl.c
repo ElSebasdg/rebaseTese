@@ -1223,9 +1223,9 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
 
   NR_SLSCH_MAC_SUBHEADER_FIXED *sl_sch_subheader = (NR_SLSCH_MAC_SUBHEADER_FIXED *) pduP;
   
-  // Log when we receive data from a remote UE
-  LOG_I(NR_MAC, "[SL_RX_DATA] Received SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d, pdu_type=%d\n",
-        sl_sch_subheader->SRC, frame, slot, pdu_len, pdu_type);
+  // // Log when we receive data from a remote UE
+  // LOG_I(NR_MAC, "[SL_RX_DATA] Received SL PDU from SRC=%d, frame=%d, slot=%d, pdu_len=%d, pdu_type=%d\n",
+  //       sl_sch_subheader->SRC, frame, slot, pdu_len, pdu_type);
   
   uint8_t psfch_period = 0;
   if (mac->sl_tx_res_pool->sl_PSFCH_Config_r16 &&
@@ -1235,16 +1235,16 @@ void nr_ue_process_mac_sl_pdu(int module_idP,
     configure_psfch_params_tx(module_idP, mac, rx_ind, pdu_id);
   }
 
-  LOG_I(NR_MAC, "[SL_RX_DATA] === CALLING find_UE === SRC=%d, mac=%p\n", sl_sch_subheader->SRC, mac);
+  // LOG_I(NR_MAC, "[SL_RX_DATA] === CALLING find_UE === SRC=%d, mac=%p\n", sl_sch_subheader->SRC, mac);
   NR_SL_UE_info_t *UE = find_UE(mac, sl_sch_subheader->SRC);
   // LOG_I(NR_MAC, "[SL_RX_DATA] === find_UE RETURNED === UE=%p\n", UE);
 
-  if (UE == NULL) {
-    LOG_W(NR_MAC, "[SL_RX_DATA] Could not find UE with SRC=%d in sl_info list!\n", sl_sch_subheader->SRC);
-    return;
-  } else {
-    // LOG_I(NR_MAC, "[SL_RX_DATA] Found UE with SRC=%d, uid=%d - Processing PDU\n", sl_sch_subheader->SRC, UE->uid);
-  }
+  // if (UE == NULL) {
+  //   LOG_W(NR_MAC, "[SL_RX_DATA] Could not find UE with SRC=%d in sl_info list!\n", sl_sch_subheader->SRC);
+  //   return;
+  // } else {
+  //   // LOG_I(NR_MAC, "[SL_RX_DATA] Found UE with SRC=%d, uid=%d - Processing PDU\n", sl_sch_subheader->SRC, UE->uid);
+  // }
 
   // LOG_I(NR_MAC, "[SL_RX_DATA] === BEFORE PDU TYPE CHECK === pdu_type=%d\n", pdu_type);
   if (pdu_type == SL_NR_RX_PDU_TYPE_SLSCH_PSFCH) {
