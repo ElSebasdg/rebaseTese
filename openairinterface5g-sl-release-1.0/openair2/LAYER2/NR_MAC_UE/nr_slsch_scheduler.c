@@ -257,6 +257,7 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
     sched_pssch->mcs = get_mcs_from_cqi(mcs_tb_ind, cqi_Table, cqi, get_nrUE_params()->mcs);
     sched_ctrl->sl_max_mcs = sched_pssch->mcs;
     ri = sched_ctrl->rx_csi_report.RI;
+    LOG_I(NR_MAC, "[MCS] MCS from CQI: %d (CQI: %d, Table: %d)\n", sched_pssch->mcs, cqi, cqi_Table);
   }
 
   /* Calculate coeff */
@@ -272,6 +273,9 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   else {
     sched_pssch->mcs = get_mcs_from_bler(sl_bo, stats, &sched_ctrl->sl_bler_stats, max_mcs, frameP);
   }
+
+  LOG_I(NR_MAC, "[MCS] Final MCS selected: %d (max_mcs: %d, max_mcs_table: %d, BLER-based)\n", 
+        sched_pssch->mcs, max_mcs, max_mcs_table);
 
   uint16_t sl_max_num_reserve = *mac->sl_tx_res_pool->sl_UE_SelectedConfigRP_r16->sl_MaxNumPerReserve_r16;
   /*
@@ -297,6 +301,8 @@ void nr_schedule_slsch(NR_UE_MAC_INST_t *mac, int frameP, int slotP, nr_sci_pdu_
   // we are using as a flag to indicate if csi report was received
   sci_pdu->mcs = sched_pssch->mcs;
   sci_pdu->additional_mcs.val = 0;
+  LOG_I(NR_MAC, "[MCS] %4d.%2d Using MCS: %d for dest_id: %d (CQI: %d)\n",
+        frameP, slotP, sci_pdu->mcs, dest_id, cqi);
   if (frameP % 5 == 0)
     LOG_D(NR_MAC, "cqi ---> %d Tx %4d.%2d dest: %d mcs %i\n",
           cqi, frameP, slotP, dest_id, sci_pdu->mcs);

@@ -58,6 +58,7 @@
 
 #include "openair3/ocp-gtpu/gtp_itf.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
+#include "common/utils/nr/nr_common.h"
 
 #include "ENB_APP/enb_config.h"
 
@@ -471,7 +472,7 @@ bool pdcp_data_req(protocol_ctxt_t  *ctxt_pP,
                                 , pdcp_pdu_p
                                 ,NULL
                                 ,NULL
-                               );
+                                , PC5);
 
       switch (rlc_status) {
         case RLC_OP_STATUS_OK:
